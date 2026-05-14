@@ -1,6 +1,8 @@
 import sqlite3
 from collections.abc import Generator
+
 from app.config import settings
+
 
 def get_connection() -> Generator[sqlite3.Connection, None, None]:
     conn = sqlite3.connect(settings.db_path)

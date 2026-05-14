@@ -1,5 +1,7 @@
 from typing import Any
+
 from pydantic import BaseModel
+
 
 class FormSummary(BaseModel):
     id: str
@@ -15,6 +17,7 @@ class FormPayload(BaseModel):
     workerForm: dict[str, Any]
     calculations: dict[str, str]
     template: str
+
 
 class FormsListResponse(BaseModel):
     forms: list[FormSummary]

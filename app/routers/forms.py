@@ -5,16 +5,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import get_connection
-from app.models import FormPayload, FormSummary, FormsListResponse
+from app.models import FormPayload, FormsListResponse, FormSummary
 
 router = APIRouter(prefix="/api/forms", tags=["forms"])
 ConnDep = Annotated[sqlite3.Connection, Depends(get_connection)]
 
+
 @router.get("")
 def list_forms(conn: ConnDep) -> FormsListResponse:
-    rows = conn.execute(
-        "SELECT id, title, description FROM forms ORDER BY title"
-    ).fetchall()
+    rows = conn.execute("SELECT id, title, description FROM forms ORDER BY title").fetchall()
     return FormsListResponse(forms=[FormSummary(**dict(r)) for r in rows])
 
 

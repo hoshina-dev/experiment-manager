@@ -1,14 +1,18 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.config import settings
 from app.database import setup
 from app.routers import forms
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup()
     yield
+
 
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
@@ -20,5 +24,6 @@ def create_app() -> FastAPI:
     )
     app.include_router(forms.router)
     return app
+
 
 app = create_app()
