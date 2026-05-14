@@ -1,3 +1,5 @@
+"""Pydantic models for request validation and response serialisation."""
+
 from typing import Any
 
 from pydantic import BaseModel
