@@ -15,10 +15,11 @@ def setup() -> None:
     conn = sqlite3.connect(settings.db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS items (
-            id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            value TEXT
+        CREATE TABLE IF NOT EXISTS forms (
+            id          TEXT PRIMARY KEY,
+            title       TEXT NOT NULL,
+            description TEXT,
+            data        TEXT NOT NULL
         )
     """)
     conn.commit()
