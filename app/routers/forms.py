@@ -5,17 +5,17 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import get_connection
-from app.models import FormPayload
+from app.models import FormPayload, FormSummary, FormsListResponse
 
 router = APIRouter(prefix="/api/forms", tags=["forms"])
 ConnDep = Annotated[sqlite3.Connection, Depends(get_connection)]
 
 @router.get("")
-def list_forms(conn: ConnDep):
+def list_forms(conn: ConnDep) -> FormsListResponse:
     rows = conn.execute(
         "SELECT id, title, description FROM forms ORDER BY title"
     ).fetchall()
-    return {"forms": [dict(r) for r in rows]}
+    return FormsListResponse(forms=[FormSummary(**dict(r)) for r in rows])
 
 
 @router.post("", status_code=201)
@@ -32,11 +32,11 @@ def create_form(payload: FormPayload, conn: ConnDep):
 
 
 @router.get("/{form_id}")
-def get_form(form_id: str, conn: ConnDep):
+def get_form(form_id: str, conn: ConnDep) -> FormPayload:
     row = conn.execute("SELECT data FROM forms WHERE id = ?", (form_id,)).fetchone()
     if row is None:
         raise HTTPException(404, "Not found")
-    return json.loads(row["data"])
+    return FormPayload(**json.loads(row["data"]))
 
 
 @router.put("/{form_id}")
