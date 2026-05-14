@@ -1,21 +1,5 @@
 import sqlite3
-
-
-def get_connection(db_path: str = "data.db") -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def setup(conn: sqlite3.Connection) -> None:
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS items (
-            id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            value TEXT
-        )
-    """)
-    conn.commit()
+from app.database import get_connection, setup
 
 
 def insert(conn: sqlite3.Connection, name: str, value: str) -> int:
