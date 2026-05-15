@@ -8,3 +8,6 @@ serve:
 
 clean:
 	rm -f data.db
+
+requirements:
+	uv export --no-hashes --format requirements-txt > requirements.txt
