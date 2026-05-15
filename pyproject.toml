@@ -1,7 +1,17 @@
 [project]
 name = "experiment-manager-poc"
 version = "0.1.0"
-description = "Add your description here"
+description = "FastAPI proof-of-concept for managing experiment form configurations, backed by SQLite"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi>=0.136.1",
+    "pydantic-settings>=2.14.1",
+    "uvicorn[standard]>=0.46.0",
+]
+
+[dependency-groups]
+dev = [
+    "black>=26.3.1",
+    "isort>=8.0.1",
+]

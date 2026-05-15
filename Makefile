@@ -1,7 +1,10 @@
-.PHONY: run clean
+.PHONY: run serve clean
 
 run:
 	python main.py
+
+serve:
+	uv run uvicorn main:app --reload --port 8000
 
 clean:
 	rm -f data.db

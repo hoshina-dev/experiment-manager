@@ -1,48 +1,50 @@
-import sqlite3
+"""Application entry point for the Experiment Manager API.
+
+Configures the FastAPI instance with CORS middleware, database initialisation,
+and all routers.
+"""
+
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import settings
+from app.database import setup
+from app.routers import forms
 
 
-def get_connection(db_path: str = "data.db") -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage application startup and shutdown lifecycle.
+
+    Runs ``setup()`` on startup to ensure required database tables exist before
+    the first request is served.
+    """
+    setup()
+    yield
 
 
-def setup(conn: sqlite3.Connection) -> None:
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS items (
-            id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            value TEXT
-        )
-    """)
-    conn.commit()
+def create_app() -> FastAPI:
+    """Construct and configure the FastAPI application.
 
+    Attaches CORS middleware restricted to the origin defined in settings, then
+    mounts all API routers.
 
-def insert(conn: sqlite3.Connection, name: str, value: str) -> int:
-    cursor = conn.execute(
-        "INSERT INTO items (name, value) VALUES (?, ?)", (name, value)
+    Returns:
+        A fully configured :class:`fastapi.FastAPI` instance ready to serve
+        requests.
+    """
+    app = FastAPI(lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[settings.cors_origin],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
-    conn.commit()
-    assert cursor.lastrowid is not None
-    return cursor.lastrowid
+    app.include_router(forms.router)
+    return app
 
 
-def fetch_all(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    return conn.execute("SELECT * FROM items").fetchall()
-
-
-if __name__ == "__main__":
-    conn = get_connection()
-    setup(conn)
-
-    insert(conn, "experiment_1", "result=0.92")
-    insert(conn, "experiment_2", "result=0.87")
-    insert(conn, "experiment_3", "result=0.95")
-
-    rows = fetch_all(conn)
-    print(f"{'ID':<5} {'Name':<20} {'Value'}")
-    print("-" * 40)
-    for row in rows:
-        print(f"{row['id']:<5} {row['name']:<20} {row['value']}")
-
-    conn.close()
+app = create_app()
