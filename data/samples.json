@@ -1,0 +1,17 @@
+[
+  {
+    "id": "tomato",
+    "name": "Tomato",
+    "description": "Fresh tomato samples for agricultural and food quality analysis"
+  },
+  {
+    "id": "coal",
+    "name": "Coal",
+    "description": "Coal samples for energy content and combustion property analysis"
+  },
+  {
+    "id": "environment_water",
+    "name": "Environment Water",
+    "description": "Water samples for environmental quality and safety monitoring"
+  }
+]

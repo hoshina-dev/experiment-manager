@@ -1,49 +1,26 @@
-"""Application entry point for the Experiment Manager API.
-
-Configures the FastAPI instance with CORS middleware, database initialisation,
-and all routers.
-"""
-
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+"""Application entry point for the Experiment Manager API."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import setup
-from app.routers import forms
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Manage application startup and shutdown lifecycle.
-
-    Runs ``setup()`` on startup to ensure required database tables exist before
-    the first request is served.
-    """
-    setup()
-    yield
+from app.observability.telemetry import setup_telemetry
+from app.routers import samples
 
 
 def create_app() -> FastAPI:
-    """Construct and configure the FastAPI application.
+    app = FastAPI(title="Experiment Manager", version="0.1.0")
 
-    Attaches CORS middleware restricted to the origin defined in settings, then
-    mounts all API routers.
-
-    Returns:
-        A fully configured :class:`fastapi.FastAPI` instance ready to serve
-        requests.
-    """
-    app = FastAPI(lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.cors_origin],
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.include_router(forms.router)
+
+    setup_telemetry(app, service_name="experiment-manager", otlp_endpoint=settings.otel_endpoint)
+
+    app.include_router(samples.router)
     return app
 
 

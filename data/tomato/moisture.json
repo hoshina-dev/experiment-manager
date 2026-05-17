@@ -1,0 +1,41 @@
+{
+  "id": "moisture",
+  "label": "Moisture Analysis",
+  "description": "Determine moisture content by drying method",
+  "workerForm": {
+    "title": "Moisture Analysis Form",
+    "description": "Record tray and sample masses before and after drying",
+    "questions": [
+      {
+        "id": "tray_mass",
+        "label": "Tray mass (g)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "tray_sam",
+        "label": "Mass of tray with sample before drying (g)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "tray_dry",
+        "label": "Mass of tray with sample after drying (g)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "tray_ctrl",
+        "label": "Mass of tray with sample after control drying (g)",
+        "required": true,
+        "type": "number"
+      }
+    ]
+  },
+  "calculations": {
+    "sample_mass": "tray_sam - tray_mass",
+    "sample_error": "tray_sam - tray_ctrl",
+    "moisture_pct": "Math.round(1000 * (sample_error / sample_mass)) / 10"
+  },
+  "template": "Moisture content = {{moisture_pct}}%"
+}

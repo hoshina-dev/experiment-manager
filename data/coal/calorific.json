@@ -1,0 +1,41 @@
+{
+  "id": "calorific",
+  "label": "Calorific Value (GCV)",
+  "description": "Determine gross calorific value by bomb calorimetry",
+  "workerForm": {
+    "title": "Calorific Value Form",
+    "description": "Record bomb calorimeter readings",
+    "questions": [
+      {
+        "id": "sample_mass",
+        "label": "Sample mass (g)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "water_equivalent",
+        "label": "Water equivalent of calorimeter (cal/°C)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "temp_rise",
+        "label": "Temperature rise (°C)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "fuse_correction",
+        "label": "Fuse wire correction (cal)",
+        "required": false,
+        "type": "number"
+      }
+    ]
+  },
+  "calculations": {
+    "fuse_corr": "fuse_correction || 0",
+    "gcv_cal_g": "Math.round((water_equivalent * temp_rise - fuse_corr) / sample_mass)",
+    "gcv_kj_kg": "Math.round(gcv_cal_g * 4.1868)"
+  },
+  "template": "GCV = {{gcv_cal_g}} cal/g ({{gcv_kj_kg}} kJ/kg)"
+}
