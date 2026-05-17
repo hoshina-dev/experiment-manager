@@ -1,0 +1,51 @@
+{
+  "id": "proximate",
+  "label": "Proximate Analysis",
+  "description": "Determine moisture, ash, volatile matter, and fixed carbon content",
+  "workerForm": {
+    "title": "Proximate Analysis Form",
+    "description": "Record masses at each stage of the proximate analysis procedure",
+    "questions": [
+      {
+        "id": "crucible_mass",
+        "label": "Crucible mass (g)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "sample_mass",
+        "label": "Sample mass (g)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "mass_after_moisture",
+        "label": "Mass after moisture drying at 105°C (g)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "mass_after_volatile",
+        "label": "Mass after volatile matter removal at 900°C (g)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "mass_after_ash",
+        "label": "Mass after ashing at 750°C (g)",
+        "required": true,
+        "type": "number"
+      }
+    ]
+  },
+  "calculations": {
+    "moisture_loss": "crucible_mass + sample_mass - mass_after_moisture",
+    "volatile_loss": "mass_after_moisture - mass_after_volatile",
+    "ash_mass": "mass_after_ash - crucible_mass",
+    "moisture_pct": "Math.round(1000 * moisture_loss / sample_mass) / 10",
+    "volatile_pct": "Math.round(1000 * volatile_loss / sample_mass) / 10",
+    "ash_pct": "Math.round(1000 * ash_mass / sample_mass) / 10",
+    "fixed_carbon_pct": "Math.round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10"
+  },
+  "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%"
+}

@@ -1,0 +1,40 @@
+{
+  "id": "ph",
+  "label": "pH Measurement",
+  "description": "Measure hydrogen ion concentration in water sample",
+  "workerForm": {
+    "title": "pH Measurement Form",
+    "description": "Record pH meter readings for the water sample",
+    "questions": [
+      {
+        "id": "sample_id_label",
+        "label": "Sample label / collection point",
+        "required": true,
+        "type": "text"
+      },
+      {
+        "id": "temperature",
+        "label": "Sample temperature at measurement (°C)",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "ph_reading_1",
+        "label": "pH reading — replicate 1",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "id": "ph_reading_2",
+        "label": "pH reading — replicate 2",
+        "required": true,
+        "type": "number"
+      }
+    ]
+  },
+  "calculations": {
+    "ph_avg": "Math.round(100 * (ph_reading_1 + ph_reading_2) / 2) / 100",
+    "status": "ph_avg < 6.5 ? \"Acidic\" : ph_avg > 8.5 ? \"Alkaline\" : \"Neutral\""
+  },
+  "template": "pH = {{ph_avg}} at {{temperature}}°C — {{status}}"
+}
