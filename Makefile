@@ -1,4 +1,4 @@
-.PHONY: serve test lint format requirements
+.PHONY: serve test lint format clean requirements
 
 serve:
 	uv run uvicorn main:app --reload --port 8000
@@ -11,6 +11,9 @@ lint:
 
 format:
 	uv run black . && uv run isort .
+
+clean:
+	rm -f experiments.db
 
 requirements:
 	uv export --no-hashes --format requirements-txt > requirements.txt

@@ -27,24 +27,30 @@ The service returns the matching templates; it **never** tells the client which 
 ## Architecture
 
 ```
-main.py                            # FastAPI app factory + OTEL init
-data/                              # Mock data — mirrors the future SQL schema
+main.py                            # FastAPI app factory + OTEL init + lifespan
+data/                              # Mock catalogue data — mirrors future SQL schema
   samples.json                     # List of all sample types
   {sample_id}/
     {analysis_id}.json             # One file per analysis template
 app/
   config.py                        # Pydantic Settings (env vars)
+  database.py                      # SQLite connection factory + schema bootstrap
   models.py                        # All Pydantic request/response models
   observability/
     telemetry.py                   # OTEL TracerProvider setup
   routers/
-    samples.py                     # HTTP layer — thin, no business logic
+    samples.py                     # /api/samples — catalogue, read-only
+    experiments.py                 # /api/experiments — CRUD
   services/
-    sample_service.py              # Business logic — every public fn has an OTEL span
+    sample_service.py              # Catalogue logic — every public fn has an OTEL span
+    experiment_service.py          # Experiment logic — every public fn has an OTEL span
   repositories/
     sample_repository.py           # Data access — reads JSON files from data/
+    experiment_repository.py       # Data access — SQLite CRUD for experiments
 tests/
+  conftest.py                      # Shared client fixture + test env overrides
   test_samples.py
+  test_experiments.py
 ```
 
 Layer rules (enforce strictly):
@@ -56,18 +62,29 @@ Layer rules (enforce strictly):
 
 ## Endpoints
 
+**Catalogue (read-only)**
+
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/samples` | List all sample types |
-| `GET` | `/api/samples/{sample_id}/analyses` | List available analyses for a sample |
-| `POST` | `/api/samples/{sample_id}/analyses/form` | Return composed templates for requested analyses |
+| `GET` | `/api/samples/{sample_id}/analyses` | List available analyses for a sample (used to render checklist) |
 
-Request body for the POST:
+**Experiments (CRUD)**
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/experiments` | Create experiment — snapshots selected templates, returns `exp_id` + full form |
+| `GET` | `/api/experiments` | List all experiments (summary, no form) |
+| `GET` | `/api/experiments/{exp_id}` | Get full experiment detail including form snapshot |
+| `PUT` | `/api/experiments/{exp_id}` | Update `requested_analyses`, regenerate form snapshot |
+| `DELETE` | `/api/experiments/{exp_id}` | Delete an experiment |
+
+POST / PUT body:
 ```json
-{ "requested_analyses": ["moisture", "sulfur"] }
+{ "sample_id": "coal", "requested_analyses": ["calorific", "proximate"] }
 ```
 
-Unknown analysis IDs in the request are **silently ignored** (not an error).
+Unknown analysis IDs are **silently ignored**. `sample_id` cannot change on PUT.
 
 ---
 
@@ -163,6 +180,7 @@ Environment variables (see `.env.example`):
 |---|---|---|
 | `APP_CORS_ORIGIN` | `http://localhost:3000` | Allowed CORS origin |
 | `APP_OTEL_ENDPOINT` | _(none)_ | OTLP/HTTP endpoint; omit to log spans to stdout |
+| `APP_DB_PATH` | `experiments.db` | Path to the SQLite file for experiment storage |
 
 ---
 

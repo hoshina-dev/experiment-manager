@@ -1,5 +1,6 @@
 """Pydantic models for request validation and response serialisation."""
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -62,14 +63,29 @@ class AnalysisTemplate(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Form request / response
+# Experiment (create / read)
 # ---------------------------------------------------------------------------
 
 
-class FormRequest(BaseModel):
+class ExperimentCreate(BaseModel):
+    sample_id: str
     requested_analyses: list[str]
 
 
-class FormResponse(BaseModel):
+class ExperimentSummary(BaseModel):
+    exp_id: str
     sample_id: str
-    analyses: list[AnalysisTemplate]
+    requested_analyses: list[str]
+    created_at: datetime
+
+
+class ExperimentDetail(BaseModel):
+    exp_id: str
+    sample_id: str
+    requested_analyses: list[str]
+    form: list[AnalysisTemplate]
+    created_at: datetime
+
+
+class ExperimentsListResponse(BaseModel):
+    experiments: list[ExperimentSummary]
