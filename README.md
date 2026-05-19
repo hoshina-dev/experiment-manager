@@ -25,24 +25,30 @@ The service is read-only — it serves templates, not experiment results.
 ## Project structure
 
 ```
-main.py                        # App factory (CORS, OTEL, routers)
-data/                          # Mock data (JSON) — mirrors future SQL schema
+main.py                        # App factory (CORS, OTEL, routers, lifespan)
+data/                          # Mock catalogue data (JSON) — mirrors future SQL schema
   samples.json
   {sample_id}/
     {analysis_id}.json
 app/
   config.py                    # Settings from env / .env
+  database.py                  # SQLite connection factory + schema bootstrap
   models.py                    # Pydantic models (request + response)
   observability/
     telemetry.py               # OTEL TracerProvider setup
   routers/
-    samples.py                 # HTTP layer — /api/samples
+    samples.py                 # /api/samples (catalogue, read-only)
+    experiments.py             # /api/experiments (CRUD)
   services/
-    sample_service.py          # Business logic + OTEL spans
+    sample_service.py          # Catalogue business logic + OTEL spans
+    experiment_service.py      # Experiment business logic + OTEL spans
   repositories/
-    sample_repository.py       # Data access (reads JSON files from data/)
+    sample_repository.py       # Reads JSON files from data/
+    experiment_repository.py   # SQLite CRUD for experiments
 tests/
+  conftest.py                  # Shared client fixture + test env overrides
   test_samples.py
+  test_experiments.py
 ```
 
 ## Getting started
@@ -63,6 +69,7 @@ cp .env.example .env
 |---|---|---|
 | `APP_CORS_ORIGIN` | `http://localhost:3000` | Allowed CORS origin |
 | `APP_OTEL_ENDPOINT` | _(none)_ | OTLP/HTTP trace endpoint; omit to print spans to stdout |
+| `APP_DB_PATH` | `experiments.db` | Path to the SQLite file for experiment storage |
 
 ### 3. Run the server
 
@@ -74,18 +81,29 @@ Interactive docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ## API
 
+**Catalogue (read-only)**
+
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/samples` | List all sample types |
-| `GET` | `/api/samples/{sample_id}/analyses` | List available analyses for a sample |
-| `POST` | `/api/samples/{sample_id}/analyses/form` | Return composed analysis templates |
+| `GET` | `/api/samples/{sample_id}/analyses` | List available analyses for a sample (checklist) |
 
-POST body:
+**Experiments (CRUD)**
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/experiments` | Create an experiment — snapshots selected templates, returns `exp_id` + full form |
+| `GET` | `/api/experiments` | List all experiments (summary, no form) |
+| `GET` | `/api/experiments/{exp_id}` | Get full experiment detail including form snapshot |
+| `PUT` | `/api/experiments/{exp_id}` | Update requested analyses and regenerate form snapshot |
+| `DELETE` | `/api/experiments/{exp_id}` | Delete an experiment |
+
+POST / PUT body:
 ```json
-{ "requested_analyses": ["moisture", "sulfur"] }
+{ "sample_id": "coal", "requested_analyses": ["calorific", "proximate"] }
 ```
 
-Unknown analysis IDs in the request are silently ignored.
+Unknown analysis IDs are silently ignored. `sample_id` cannot change on PUT.
 
 ## Development
 
