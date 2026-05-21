@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
 # Sample
@@ -105,8 +105,8 @@ class TemplateUpdate(BaseModel):
 
 class ExperimentCreate(BaseModel):
     exp_id: UUID
-    sample_id: UUID
-    template_id: str
+    sample_id: UUID = Field(examples=["a1b2c3d4-0002-0002-0002-000000000002"])
+    template_id: str = Field(examples=["d59a46b2-28a5-4243-b894-c6ecf6309d02"])
 
 
 class ExperimentUpdate(BaseModel):
