@@ -22,11 +22,11 @@ SELECT id, 'Proximate Analysis', 'Determine moisture, ash, volatile matter, and 
     "title": "Proximate Analysis Form",
     "description": "Record masses at each stage of the proximate analysis procedure.",
     "questions": [
-      { "id": "crucible_mass",       "type": "number", "label": "Crucible mass (g)",                              "required": true  },
-      { "id": "sample_mass",         "type": "number", "label": "Sample mass (g)",                               "required": true  },
-      { "id": "mass_after_moisture", "type": "number", "label": "Mass after moisture drying at 105°C (g)",       "required": true  },
-      { "id": "mass_after_volatile", "type": "number", "label": "Mass after volatile matter removal at 900°C (g)","required": true  },
-      { "id": "mass_after_ash",      "type": "number", "label": "Mass after ashing at 750°C (g)",                "required": true  }
+      { "id": "crucible_mass",       "type": "number", "label": "Crucible mass (g)",                               "required": true,  "min": 0, "max": 200, "step": 0.001, "default": 20.0   },
+      { "id": "sample_mass",         "type": "number", "label": "Sample mass (g)",                                "required": true,  "min": 0, "max": 10,  "step": 0.001, "default": 1.0    },
+      { "id": "mass_after_moisture", "type": "number", "label": "Mass after moisture drying at 105°C (g)",        "required": true,  "min": 0, "max": 200, "step": 0.001, "default": 20.8   },
+      { "id": "mass_after_volatile", "type": "number", "label": "Mass after volatile matter removal at 900°C (g)","required": true,  "min": 0, "max": 200, "step": 0.001, "default": 20.5   },
+      { "id": "mass_after_ash",      "type": "number", "label": "Mass after ashing at 750°C (g)",                 "required": true,  "min": 0, "max": 200, "step": 0.001, "default": 20.1   }
     ]
   },
   "calculations": {
@@ -38,7 +38,7 @@ SELECT id, 'Proximate Analysis', 'Determine moisture, ash, volatile matter, and 
     "ash_pct":          "Math.round(1000 * ash_mass / sample_mass) / 10",
     "fixed_carbon_pct": "Math.round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10"
   },
-  "outputTemplate": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%"
+  "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%"
 }'::jsonb
 FROM sample_types WHERE name = 'Coal'
 ON CONFLICT (sample_type_id, name) DO NOTHING;
@@ -69,10 +69,10 @@ SELECT id, 'Calorific Value (GCV)', 'Determine gross calorific value by bomb cal
     "title": "Calorific Value Form",
     "description": "Record bomb calorimeter readings.",
     "questions": [
-      { "id": "sample_mass",      "type": "number", "label": "Sample mass (g)",                          "required": true  },
-      { "id": "water_equivalent", "type": "number", "label": "Water equivalent of calorimeter (cal/°C)", "required": true  },
-      { "id": "temp_rise",        "type": "number", "label": "Temperature rise (°C)",                    "required": true  },
-      { "id": "fuse_correction",  "type": "number", "label": "Fuse wire correction (cal)",               "required": false }
+      { "id": "sample_mass",      "type": "number", "label": "Sample mass (g)",                          "required": true,  "min": 0,    "max": 10,   "step": 0.001, "default": 1.0    },
+      { "id": "water_equivalent", "type": "number", "label": "Water equivalent of calorimeter (cal/°C)", "required": true,  "min": 1000, "max": 5000, "step": 0.1,   "default": 2426.0 },
+      { "id": "temp_rise",        "type": "number", "label": "Temperature rise (°C)",                    "required": true,  "min": 0,    "max": 10,   "step": 0.001, "default": 2.5    },
+      { "id": "fuse_correction",  "type": "number", "label": "Fuse wire correction (cal)",               "required": false, "min": 0,    "max": 100,  "step": 0.1,   "default": 2.0    }
     ]
   },
   "calculations": {
@@ -80,7 +80,7 @@ SELECT id, 'Calorific Value (GCV)', 'Determine gross calorific value by bomb cal
     "gcv_cal_g": "Math.round((water_equivalent * temp_rise - fuse_corr) / sample_mass)",
     "gcv_kj_kg": "Math.round(gcv_cal_g * 4.1868)"
   },
-  "outputTemplate": "GCV = {{gcv_cal_g}} cal/g ({{gcv_kj_kg}} kJ/kg)"
+  "template": "GCV = {{gcv_cal_g}} cal/g ({{gcv_kj_kg}} kJ/kg)"
 }'::jsonb
 FROM sample_types WHERE name = 'Coal'
 ON CONFLICT (sample_type_id, name) DO NOTHING;
@@ -111,17 +111,17 @@ SELECT id, 'Sulfur Content Analysis', 'Determine total sulfur content by titrime
     "title": "Sulfur Analysis Form",
     "description": "Record sample mass and titration volumes.",
     "questions": [
-      { "id": "sample_mass",    "type": "number", "label": "Sample mass (g)",             "required": true },
-      { "id": "titrant_volume", "type": "number", "label": "Volume of titrant used (mL)", "required": true },
-      { "id": "blank_volume",   "type": "number", "label": "Blank titrant volume (mL)",   "required": true },
-      { "id": "normality",      "type": "number", "label": "Normality of titrant (N)",    "required": true }
+      { "id": "sample_mass",    "type": "number", "label": "Sample mass (g)",             "required": true, "min": 0,    "max": 10,  "step": 0.001, "default": 1.0  },
+      { "id": "titrant_volume", "type": "number", "label": "Volume of titrant used (mL)", "required": true, "min": 0,    "max": 50,  "step": 0.01,  "default": 10.0 },
+      { "id": "blank_volume",   "type": "number", "label": "Blank titrant volume (mL)",   "required": true, "min": 0,    "max": 10,  "step": 0.01,  "default": 0.5  },
+      { "id": "normality",      "type": "number", "label": "Normality of titrant (N)",    "required": true, "min": 0.001,"max": 1,   "step": 0.001, "default": 0.1  }
     ]
   },
   "calculations": {
     "net_volume": "titrant_volume - blank_volume",
     "sulfur_pct": "Math.round(10000 * (net_volume * normality * 1.603) / sample_mass) / 100"
   },
-  "outputTemplate": "Sulfur content = {{sulfur_pct}}%"
+  "template": "Sulfur content = {{sulfur_pct}}%"
 }'::jsonb
 FROM sample_types WHERE name = 'Coal'
 ON CONFLICT (sample_type_id, name) DO NOTHING;
@@ -129,9 +129,6 @@ ON CONFLICT (sample_type_id, name) DO NOTHING;
 
 -- ══════════════════════════════════════════════════════════════════
 -- TOMATO  (1 template)
---
--- userForm: customer picks from Moisture Analysis
---           (extend options here as more tomato analyses are added)
 -- ══════════════════════════════════════════════════════════════════
 
 -- ── Tomato / Moisture Analysis ────────────────────────────────────
@@ -157,10 +154,10 @@ SELECT id, 'Moisture Analysis', 'Determine moisture content by drying method',
     "title": "Moisture Analysis Form",
     "description": "Record tray and sample masses before and after drying.",
     "questions": [
-      { "id": "tray_mass", "type": "number", "label": "Tray mass (g)",                                     "required": true },
-      { "id": "tray_sam",  "type": "number", "label": "Mass of tray with sample before drying (g)",        "required": true },
-      { "id": "tray_dry",  "type": "number", "label": "Mass of tray with sample after drying (g)",         "required": true },
-      { "id": "tray_ctrl", "type": "number", "label": "Mass of tray with sample after control drying (g)", "required": true }
+      { "id": "tray_mass", "type": "number", "label": "Tray mass (g)",                                     "required": true, "min": 0, "max": 500, "step": 0.01, "default": 100.0 },
+      { "id": "tray_sam",  "type": "number", "label": "Mass of tray with sample before drying (g)",        "required": true, "min": 0, "max": 600, "step": 0.01, "default": 120.0 },
+      { "id": "tray_dry",  "type": "number", "label": "Mass of tray with sample after drying (g)",         "required": true, "min": 0, "max": 600, "step": 0.01, "default": 115.0 },
+      { "id": "tray_ctrl", "type": "number", "label": "Mass of tray with sample after control drying (g)", "required": true, "min": 0, "max": 600, "step": 0.01, "default": 115.0 }
     ]
   },
   "calculations": {
@@ -168,16 +165,14 @@ SELECT id, 'Moisture Analysis', 'Determine moisture content by drying method',
     "sample_error": "tray_sam - tray_ctrl",
     "moisture_pct": "Math.round(1000 * (sample_error / sample_mass)) / 10"
   },
-  "outputTemplate": "Moisture content = {{moisture_pct}}%"
+  "template": "Moisture content = {{moisture_pct}}%"
 }'::jsonb
 FROM sample_types WHERE name = 'Tomato'
 ON CONFLICT (sample_type_id, name) DO NOTHING;
 
 
 -- ══════════════════════════════════════════════════════════════════
--- ENVIRONMENT WATER  (2 templates — both share the same userForm)
---
--- userForm: customer picks from pH Measurement and Turbidity
+-- ENVIRONMENT WATER  (2 templates)
 -- ══════════════════════════════════════════════════════════════════
 
 -- ── Environment Water / pH Measurement ───────────────────────────
@@ -194,8 +189,8 @@ SELECT id, 'pH Measurement', 'Measure hydrogen ion concentration in water sample
         "label": "Analyses",
         "default": ["ph", "turbidity"],
         "options": [
-          { "label": "pH Measurement",       "value": "ph"        },
-          { "label": "Turbidity Measurement","value": "turbidity" }
+          { "label": "pH Measurement",        "value": "ph"        },
+          { "label": "Turbidity Measurement", "value": "turbidity" }
         ]
       }
     ]
@@ -204,17 +199,17 @@ SELECT id, 'pH Measurement', 'Measure hydrogen ion concentration in water sample
     "title": "pH Measurement Form",
     "description": "Record pH meter readings for the water sample.",
     "questions": [
-      { "id": "sample_id_label", "type": "text",   "label": "Sample label / collection point",      "required": true  },
-      { "id": "temperature",     "type": "number", "label": "Sample temperature at measurement (°C)","required": true  },
-      { "id": "ph_reading_1",    "type": "number", "label": "pH reading — replicate 1",              "required": true  },
-      { "id": "ph_reading_2",    "type": "number", "label": "pH reading — replicate 2",              "required": true  }
+      { "id": "sample_id_label", "type": "text",   "label": "Sample label / collection point",       "required": true  },
+      { "id": "temperature",     "type": "number", "label": "Sample temperature at measurement (°C)", "required": true,  "min": 0, "max": 100, "step": 0.1,  "default": 25.0 },
+      { "id": "ph_reading_1",    "type": "number", "label": "pH reading — replicate 1",               "required": true,  "min": 0, "max": 14,  "step": 0.01, "default": 7.0  },
+      { "id": "ph_reading_2",    "type": "number", "label": "pH reading — replicate 2",               "required": true,  "min": 0, "max": 14,  "step": 0.01, "default": 7.0  }
     ]
   },
   "calculations": {
     "ph_avg": "Math.round(100 * (ph_reading_1 + ph_reading_2) / 2) / 100",
     "status": "ph_avg < 6.5 ? \"Acidic\" : ph_avg > 8.5 ? \"Alkaline\" : \"Neutral\""
   },
-  "outputTemplate": "pH = {{ph_avg}} at {{temperature}}°C — {{status}}"
+  "template": "pH = {{ph_avg}} at {{temperature}}°C — {{status}}"
 }'::jsonb
 FROM sample_types WHERE name = 'Environment Water'
 ON CONFLICT (sample_type_id, name) DO NOTHING;
@@ -234,8 +229,8 @@ SELECT id, 'Turbidity Measurement', 'Measure water clarity using a nephelometric
         "label": "Analyses",
         "default": ["ph", "turbidity"],
         "options": [
-          { "label": "pH Measurement",       "value": "ph"        },
-          { "label": "Turbidity Measurement","value": "turbidity" }
+          { "label": "pH Measurement",        "value": "ph"        },
+          { "label": "Turbidity Measurement", "value": "turbidity" }
         ]
       }
     ]
@@ -244,17 +239,17 @@ SELECT id, 'Turbidity Measurement', 'Measure water clarity using a nephelometric
     "title": "Turbidity Form",
     "description": "Record turbidimeter readings.",
     "questions": [
-      { "id": "sample_id_label", "type": "text",   "label": "Sample label / collection point",       "required": true },
-      { "id": "ntu_reading_1",   "type": "number", "label": "Turbidity reading — replicate 1 (NTU)", "required": true },
-      { "id": "ntu_reading_2",   "type": "number", "label": "Turbidity reading — replicate 2 (NTU)", "required": true }
+      { "id": "sample_id_label", "type": "text",   "label": "Sample label / collection point",        "required": true },
+      { "id": "ntu_reading_1",   "type": "number", "label": "Turbidity reading — replicate 1 (NTU)",  "required": true, "min": 0, "max": 1000, "step": 0.01, "default": 2.5 },
+      { "id": "ntu_reading_2",   "type": "number", "label": "Turbidity reading — replicate 2 (NTU)",  "required": true, "min": 0, "max": 1000, "step": 0.01, "default": 2.5 }
     ]
   },
   "calculations": {
-    "ntu_avg":      "Math.round(100 * (ntu_reading_1 + ntu_reading_2) / 2) / 100",
-    "who_limit":    "5",
-    "exceeds_limit":"ntu_avg > who_limit ? \"EXCEEDS WHO limit\" : \"Within WHO limit\""
+    "ntu_avg":       "Math.round(100 * (ntu_reading_1 + ntu_reading_2) / 2) / 100",
+    "who_limit":     "5",
+    "exceeds_limit": "ntu_avg > who_limit ? \"EXCEEDS WHO limit\" : \"Within WHO limit\""
   },
-  "outputTemplate": "Turbidity = {{ntu_avg}} NTU — {{exceeds_limit}} (5 NTU)"
+  "template": "Turbidity = {{ntu_avg}} NTU — {{exceeds_limit}} (5 NTU)"
 }'::jsonb
 FROM sample_types WHERE name = 'Environment Water'
 ON CONFLICT (sample_type_id, name) DO NOTHING;

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.repositories.experiment_repository as experiment_repo
 import app.repositories.sample_repository as sample_repo
 from app.db_models import ExperimentTemplate
-from app.models import (AnalysisTemplate, ExperimentCreate, ExperimentDetail,
+from app.models import (ExperimentCreate, ExperimentDetail,
                         ExperimentsListResponse, ExperimentSummary,
                         ExperimentUpdate)
 
@@ -32,7 +32,7 @@ def _row_to_summary(row) -> ExperimentSummary:
     return ExperimentSummary(
         exp_id=row.id,
         sample_id=state["sample_id"],
-        template_id=state["template"]["id"],
+        template_id=state["template_id"],
         created_at=row.created_at,
     )
 
@@ -42,8 +42,7 @@ def _row_to_detail(row) -> ExperimentDetail:
     return ExperimentDetail(
         exp_id=row.id,
         sample_id=state["sample_id"],
-        template=AnalysisTemplate(**state["template"]),
-        values=state["values"],
+        state=state["state"],
         created_at=row.created_at,
     )
 
@@ -67,8 +66,8 @@ async def create_experiment(
 
         state = {
             "sample_id": str(body.sample_id),
-            "template": _full_template_snapshot(template_row),
-            "values": {},
+            "template_id": body.template_id,
+            "state": _full_template_snapshot(template_row),
         }
 
         try:
@@ -106,7 +105,7 @@ async def update_experiment(
         if existing is None:
             return None
 
-        state = {**existing.state, "values": body.values}
+        state = {**existing.state, "state": body.state}
 
         row = await experiment_repo.update(session, exp_id, state)
         await session.commit()

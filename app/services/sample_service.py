@@ -2,7 +2,9 @@
 
 import uuid
 
+from fastapi import HTTPException
 from opentelemetry import trace
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.repositories.sample_repository as repo
@@ -49,8 +51,12 @@ async def create_sample(
     session: AsyncSession, body: SampleCreate
 ) -> SampleSummary:
     with tracer.start_as_current_span("sample_service.create_sample"):
-        row = await repo.create_sample_type(session, body.name, body.description)
-        await session.commit()
+        try:
+            row = await repo.create_sample_type(session, body.name, body.description)
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            raise HTTPException(status_code=409, detail=f'Sample "{body.name}" already exists')
         return SampleSummary(id=row.id, name=row.name, description=row.description)
 
 
@@ -59,10 +65,14 @@ async def update_sample(
 ) -> SampleSummary | None:
     with tracer.start_as_current_span("sample_service.update_sample") as span:
         span.set_attribute("sample.id", str(sample_id))
-        row = await repo.update_sample_type(session, sample_id, body.name, body.description)
-        if row is None:
-            return None
-        await session.commit()
+        try:
+            row = await repo.update_sample_type(session, sample_id, body.name, body.description)
+            if row is None:
+                return None
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            raise HTTPException(status_code=409, detail=f'Sample name "{body.name}" already exists')
         return SampleSummary(id=row.id, name=row.name, description=row.description)
 
 
@@ -114,10 +124,14 @@ async def create_analysis(
         if sample is None:
             return None
         template_data = body.model_dump(exclude={"name", "description"}, exclude_none=True)
-        row = await repo.create_template(
-            session, sample_id, body.name, body.description, template_data
-        )
-        await session.commit()
+        try:
+            row = await repo.create_template(
+                session, sample_id, body.name, body.description, template_data
+            )
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            raise HTTPException(status_code=409, detail=f'Analysis "{body.name}" already exists for this sample')
         return _template_to_analysis(row)
 
 
