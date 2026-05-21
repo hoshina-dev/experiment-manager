@@ -9,8 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.services.experiment_service as service
 from app.database import get_db
 from app.models import (ExperimentCreate, ExperimentDetail,
-                        ExperimentFormResponse, ExperimentsListResponse,
-                        ExperimentUpdate)
+                        ExperimentsListResponse, ExperimentUpdate)
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"])
 
@@ -29,13 +28,6 @@ async def create_experiment(body: ExperimentCreate, db: DbDep) -> ExperimentDeta
 async def list_experiments(db: DbDep) -> ExperimentsListResponse:
     return await service.list_experiments(db)
 
-
-@router.get("/{exp_id}/form", response_model=ExperimentFormResponse)
-async def get_experiment_form(exp_id: uuid.UUID, db: DbDep) -> ExperimentFormResponse:
-    result = await service.get_form(db, exp_id)
-    if result is None:
-        raise HTTPException(404, f'Experiment "{exp_id}" not found')
-    return result
 
 
 @router.get("/{exp_id}", response_model=ExperimentDetail)

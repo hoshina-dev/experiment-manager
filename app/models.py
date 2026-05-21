@@ -44,7 +44,7 @@ class WorkerForm(BaseModel):
 
 class AnalysisSummary(BaseModel):
     id: UUID
-    label: str
+    name: str
     description: str | None = None
 
 
@@ -55,7 +55,43 @@ class AnalysesListResponse(BaseModel):
 
 class AnalysisTemplate(BaseModel):
     id: UUID
-    label: str
+    name: str
+    description: str | None = None
+    workerForm: WorkerForm
+    calculations: dict[str, str]
+    template: str
+
+
+# ---------------------------------------------------------------------------
+# Sample (create / update)
+# ---------------------------------------------------------------------------
+
+
+class SampleCreate(BaseModel):
+    name: str
+    description: str | None = None
+
+
+class SampleUpdate(BaseModel):
+    name: str
+    description: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Analysis template (create / update)
+# ---------------------------------------------------------------------------
+
+
+class TemplateCreate(BaseModel):
+    name: str
+    description: str | None = None
+    workerForm: WorkerForm
+    calculations: dict[str, str]
+    template: str
+
+
+class TemplateUpdate(BaseModel):
+    name: str
     description: str | None = None
     workerForm: WorkerForm
     calculations: dict[str, str]
@@ -70,32 +106,27 @@ class AnalysisTemplate(BaseModel):
 class ExperimentCreate(BaseModel):
     exp_id: UUID
     sample_id: UUID
-    requested_analyses: list[UUID]
+    template_id: str
 
 
 class ExperimentUpdate(BaseModel):
-    sample_id: UUID
-    requested_analyses: list[UUID]
+    values: dict
 
 
 class ExperimentSummary(BaseModel):
     exp_id: UUID
     sample_id: UUID
-    requested_analyses: list[UUID]
+    template_id: UUID
     created_at: datetime
 
 
 class ExperimentDetail(BaseModel):
     exp_id: UUID
     sample_id: UUID
-    requested_analyses: list[UUID]
-    form: list[AnalysisTemplate]
+    template: AnalysisTemplate
+    values: dict
     created_at: datetime
 
 
 class ExperimentsListResponse(BaseModel):
     experiments: list[ExperimentSummary]
-
-
-class ExperimentFormResponse(BaseModel):
-    form: list[AnalysisTemplate]

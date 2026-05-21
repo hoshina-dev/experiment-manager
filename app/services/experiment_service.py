@@ -11,8 +11,8 @@ import app.repositories.experiment_repository as experiment_repo
 import app.repositories.sample_repository as sample_repo
 from app.db_models import ExperimentTemplate
 from app.models import (AnalysisTemplate, ExperimentCreate, ExperimentDetail,
-                        ExperimentFormResponse, ExperimentsListResponse,
-                        ExperimentSummary, ExperimentUpdate)
+                        ExperimentsListResponse, ExperimentSummary,
+                        ExperimentUpdate)
 
 tracer = trace.get_tracer(__name__)
 
@@ -20,7 +20,7 @@ tracer = trace.get_tracer(__name__)
 def _template_to_analysis(t: ExperimentTemplate) -> AnalysisTemplate:
     return AnalysisTemplate(
         id=t.id,
-        label=t.name,
+        name=t.name,
         description=t.description,
         workerForm=t.template["workerForm"],
         calculations=t.template["calculations"],
@@ -33,7 +33,7 @@ def _row_to_summary(row) -> ExperimentSummary:
     return ExperimentSummary(
         exp_id=row.id,
         sample_id=state["sample_id"],
-        requested_analyses=state["requested_analyses"],
+        template_id=state["template"]["id"],
         created_at=row.created_at,
     )
 
@@ -43,8 +43,8 @@ def _row_to_detail(row) -> ExperimentDetail:
     return ExperimentDetail(
         exp_id=row.id,
         sample_id=state["sample_id"],
-        requested_analyses=state["requested_analyses"],
-        form=[AnalysisTemplate(**t) for t in state["form"]],
+        template=AnalysisTemplate(**state["template"]),
+        values=state["values"],
         created_at=row.created_at,
     )
 
@@ -60,15 +60,16 @@ async def create_experiment(
         if sample is None:
             return None
 
-        templates = await sample_repo.get_templates_by_ids(
-            session, body.sample_id, body.requested_analyses
+        template_row = await sample_repo.get_template(
+            session, body.sample_id, uuid.UUID(body.template_id)
         )
-        form_snapshot = [_template_to_analysis(t) for t in templates]
+        if template_row is None:
+            return None
 
         state = {
             "sample_id": str(body.sample_id),
-            "requested_analyses": [str(uid) for uid in body.requested_analyses],
-            "form": [t.model_dump(mode="json") for t in form_snapshot],
+            "template": _template_to_analysis(template_row).model_dump(mode="json"),
+            "values": {},
         }
 
         try:
@@ -106,17 +107,7 @@ async def update_experiment(
         if existing is None:
             return None
 
-        stored_sample_id = uuid.UUID(existing.state["sample_id"])
-        templates = await sample_repo.get_templates_by_ids(
-            session, stored_sample_id, body.requested_analyses
-        )
-        form_snapshot = [_template_to_analysis(t) for t in templates]
-
-        state = {
-            "sample_id": str(stored_sample_id),
-            "requested_analyses": [str(uid) for uid in body.requested_analyses],
-            "form": [t.model_dump(mode="json") for t in form_snapshot],
-        }
+        state = {**existing.state, "values": body.values}
 
         row = await experiment_repo.update(session, exp_id, state)
         await session.commit()
@@ -132,13 +123,3 @@ async def delete_experiment(session: AsyncSession, exp_id: uuid.UUID) -> bool:
         return deleted
 
 
-async def get_form(
-    session: AsyncSession, exp_id: uuid.UUID
-) -> ExperimentFormResponse | None:
-    with tracer.start_as_current_span("experiment_service.get_form") as span:
-        span.set_attribute("exp_id", str(exp_id))
-        row = await experiment_repo.get(session, exp_id)
-        if row is None:
-            return None
-        form = [AnalysisTemplate(**t) for t in row.state["form"]]
-        return ExperimentFormResponse(form=form)
