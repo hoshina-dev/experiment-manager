@@ -1,61 +1,62 @@
 """CRUD router for experiments, mounted at /api/experiments."""
 
+import uuid
 from typing import Annotated
 
-import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.services.experiment_service as service
-from app.database import get_connection
-from app.models import ExperimentCreate, ExperimentDetail, ExperimentsListResponse
+from app.database import get_db
+from app.models import (ExperimentCreate, ExperimentDetail,
+                        ExperimentFormResponse, ExperimentsListResponse,
+                        ExperimentUpdate)
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"])
 
-ConnDep = Annotated[sqlite3.Connection, Depends(get_connection)]
+DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post("", response_model=ExperimentDetail, status_code=201)
-def create_experiment(body: ExperimentCreate, conn: ConnDep) -> ExperimentDetail:
-    """Create an experiment from a sample + selected analyses.
-
-    Snapshots the full analysis templates at creation time so the form sent
-    to the lab is preserved even if templates change later.
-    """
-    result = service.create_experiment(conn, body)
+async def create_experiment(body: ExperimentCreate, db: DbDep) -> ExperimentDetail:
+    result = await service.create_experiment(db, body)
     if result is None:
         raise HTTPException(404, f'Sample "{body.sample_id}" not found')
     return result
 
 
 @router.get("", response_model=ExperimentsListResponse)
-def list_experiments(conn: ConnDep) -> ExperimentsListResponse:
-    """Return a summary list of all experiments, newest first."""
-    return service.list_experiments(conn)
+async def list_experiments(db: DbDep) -> ExperimentsListResponse:
+    return await service.list_experiments(db)
+
+
+@router.get("/{exp_id}/form", response_model=ExperimentFormResponse)
+async def get_experiment_form(exp_id: uuid.UUID, db: DbDep) -> ExperimentFormResponse:
+    result = await service.get_form(db, exp_id)
+    if result is None:
+        raise HTTPException(404, f'Experiment "{exp_id}" not found')
+    return result
 
 
 @router.get("/{exp_id}", response_model=ExperimentDetail)
-def get_experiment(exp_id: str, conn: ConnDep) -> ExperimentDetail:
-    """Return the full experiment detail including the form snapshot."""
-    result = service.get_experiment(conn, exp_id)
+async def get_experiment(exp_id: uuid.UUID, db: DbDep) -> ExperimentDetail:
+    result = await service.get_experiment(db, exp_id)
     if result is None:
         raise HTTPException(404, f'Experiment "{exp_id}" not found')
     return result
 
 
 @router.put("/{exp_id}", response_model=ExperimentDetail)
-def update_experiment(exp_id: str, body: ExperimentCreate, conn: ConnDep) -> ExperimentDetail:
-    """Replace the requested analyses for an experiment and regenerate the form snapshot.
-
-    The sample_id cannot change — only requested_analyses is updated.
-    """
-    result = service.update_experiment(conn, exp_id, body)
+async def update_experiment(
+    exp_id: uuid.UUID, body: ExperimentUpdate, db: DbDep
+) -> ExperimentDetail:
+    result = await service.update_experiment(db, exp_id, body)
     if result is None:
         raise HTTPException(404, f'Experiment "{exp_id}" not found')
     return result
 
 
 @router.delete("/{exp_id}", status_code=204)
-def delete_experiment(exp_id: str, conn: ConnDep) -> None:
-    """Delete an experiment by ID."""
-    if not service.delete_experiment(conn, exp_id):
+async def delete_experiment(exp_id: uuid.UUID, db: DbDep) -> None:
+    if not await service.delete_experiment(db, exp_id):
         raise HTTPException(404, f'Experiment "{exp_id}" not found')
