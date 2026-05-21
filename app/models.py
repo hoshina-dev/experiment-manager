@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Sample
@@ -27,6 +27,8 @@ class SamplesListResponse(BaseModel):
 
 
 class FormQuestion(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     id: str
     label: str
     description: str | None = None
@@ -57,6 +59,7 @@ class AnalysisTemplate(BaseModel):
     id: UUID
     name: str
     description: str | None = None
+    userForm: WorkerForm | None = None
     workerForm: WorkerForm
     calculations: dict[str, str]
     template: str
@@ -85,6 +88,7 @@ class SampleUpdate(BaseModel):
 class TemplateCreate(BaseModel):
     name: str
     description: str | None = None
+    userForm: WorkerForm | None = None
     workerForm: WorkerForm
     calculations: dict[str, str]
     template: str
@@ -93,6 +97,7 @@ class TemplateCreate(BaseModel):
 class TemplateUpdate(BaseModel):
     name: str
     description: str | None = None
+    userForm: WorkerForm | None = None
     workerForm: WorkerForm
     calculations: dict[str, str]
     template: str

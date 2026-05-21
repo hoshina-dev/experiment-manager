@@ -19,9 +19,7 @@ def _template_to_analysis(t: ExperimentTemplate) -> AnalysisTemplate:
         id=t.id,
         name=t.name,
         description=t.description,
-        workerForm=t.template["workerForm"],
-        calculations=t.template["calculations"],
-        template=t.template["template"],
+        **t.template,
     )
 
 
@@ -115,11 +113,7 @@ async def create_analysis(
         sample = await repo.get_sample_type(session, sample_id)
         if sample is None:
             return None
-        template_data = {
-            "workerForm": body.workerForm.model_dump(),
-            "calculations": body.calculations,
-            "template": body.template,
-        }
+        template_data = body.model_dump(exclude={"name", "description"}, exclude_none=True)
         row = await repo.create_template(
             session, sample_id, body.name, body.description, template_data
         )
@@ -136,11 +130,7 @@ async def update_analysis(
     with tracer.start_as_current_span("sample_service.update_analysis") as span:
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("template.id", str(template_id))
-        template_data = {
-            "workerForm": body.workerForm.model_dump(),
-            "calculations": body.calculations,
-            "template": body.template,
-        }
+        template_data = body.model_dump(exclude={"name", "description"}, exclude_none=True)
         row = await repo.update_template(
             session, sample_id, template_id, body.name, body.description, template_data
         )

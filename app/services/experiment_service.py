@@ -17,15 +17,14 @@ from app.models import (AnalysisTemplate, ExperimentCreate, ExperimentDetail,
 tracer = trace.get_tracer(__name__)
 
 
-def _template_to_analysis(t: ExperimentTemplate) -> AnalysisTemplate:
-    return AnalysisTemplate(
-        id=t.id,
-        name=t.name,
-        description=t.description,
-        workerForm=t.template["workerForm"],
-        calculations=t.template["calculations"],
-        template=t.template["template"],
-    )
+def _full_template_snapshot(t: ExperimentTemplate) -> dict:
+    """Build the full template dict stored in experiment state."""
+    return {
+        "id": str(t.id),
+        "name": t.name,
+        "description": t.description,
+        **t.template,
+    }
 
 
 def _row_to_summary(row) -> ExperimentSummary:
@@ -68,7 +67,7 @@ async def create_experiment(
 
         state = {
             "sample_id": str(body.sample_id),
-            "template": _template_to_analysis(template_row).model_dump(mode="json"),
+            "template": _full_template_snapshot(template_row),
             "values": {},
         }
 
