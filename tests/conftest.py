@@ -1,22 +1,104 @@
-"""Pytest configuration: env overrides and shared TestClient fixture."""
-
 import os
-import tempfile
+import uuid
+from collections.abc import AsyncGenerator
 
-# Must be set before any app module is imported so pydantic-settings picks them up.
-_tmp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-_tmp_db.close()
-os.environ["APP_DB_PATH"] = _tmp_db.name
-os.environ["APP_OTEL_ENDPOINT"] = ""  # disable remote export during tests
+os.environ["OTEL_ENDPOINT"] = ""
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from main import app  # noqa: E402
+from app.config import settings
+from app.database import get_db
+from app.db_models import Base, ExperimentTemplate, SampleType
+from main import app
+
+# Fixed IDs shared across all tests — must match seed_catalogue fixture below
+COAL_ID = uuid.UUID("a1b2c3d4-0002-0002-0002-000000000002")
+TOMATO_ID = uuid.UUID("a1b2c3d4-0001-0001-0001-000000000001")
+PROXIMATE_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0001-0001-0001-000000000001")
+CALORIFIC_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0002-0002-0002-000000000002")
 
 
 @pytest.fixture(scope="session")
-def client() -> TestClient:
-    # Context manager triggers lifespan → setup() creates the experiments table.
-    with TestClient(app) as c:
-        yield c
+def require_test_db() -> None:
+    if not settings.test_data_source_name:
+        pytest.skip("TEST_DATA_SOURCE_NAME not set in .env — skipping tests")
+
+
+@pytest.fixture(scope="session")
+async def test_engine(require_test_db):
+    url = settings.test_database_url
+    assert url, "TEST_DATA_SOURCE_NAME not set"
+    engine = create_async_engine(url, echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest.fixture(scope="session")
+async def seed_catalogue(test_engine):
+    """Insert sample types and templates once for the whole test session."""
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with factory() as session:
+        session.add_all([
+            SampleType(id=COAL_ID, name="Coal", description="Coal samples"),
+            SampleType(id=TOMATO_ID, name="Tomato", description="Tomato samples"),
+        ])
+        await session.flush()
+        session.add_all([
+            ExperimentTemplate(
+                id=PROXIMATE_TEMPLATE_ID,
+                sample_type_id=COAL_ID,
+                name="Proximate Analysis",
+                description="Determine moisture, ash, volatile matter, and fixed carbon",
+                template={
+                    "workerForm": {"title": "Proximate Form", "questions": []},
+                    "calculations": {"result": "value * 100"},
+                    "template": "Result: {{result}}%",
+                },
+            ),
+            ExperimentTemplate(
+                id=CALORIFIC_TEMPLATE_ID,
+                sample_type_id=COAL_ID,
+                name="Calorific Value",
+                description="Determine gross calorific value",
+                template={
+                    "workerForm": {"title": "Calorific Form", "questions": []},
+                    "calculations": {"gcv": "value * 4.1868"},
+                    "template": "GCV: {{gcv}} kJ/kg",
+                },
+            ),
+        ])
+        await session.commit()
+
+
+@pytest.fixture
+async def client(test_engine, seed_catalogue) -> AsyncGenerator[AsyncClient, None]:
+    """Per-test AsyncClient. All DB writes are rolled back after each test."""
+    async with test_engine.connect() as conn:
+        await conn.begin()
+
+        session_factory = async_sessionmaker(
+            conn,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            join_transaction_mode="create_savepoint",
+        )
+
+        async def _override_get_db():
+            async with session_factory() as session:
+                yield session
+
+        app.dependency_overrides[get_db] = _override_get_db
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
+            yield ac
+
+        app.dependency_overrides.pop(get_db, None)
+        await conn.rollback()
