@@ -6,7 +6,8 @@ os.environ["OTEL_ENDPOINT"] = ""
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
 
 from app.config import settings
 from app.database import get_db
@@ -44,35 +45,39 @@ async def seed_catalogue(test_engine):
     """Insert sample types and templates once for the whole test session."""
     factory = async_sessionmaker(test_engine, expire_on_commit=False)
     async with factory() as session:
-        session.add_all([
-            SampleType(id=COAL_ID, name="Coal", description="Coal samples"),
-            SampleType(id=TOMATO_ID, name="Tomato", description="Tomato samples"),
-        ])
+        session.add_all(
+            [
+                SampleType(id=COAL_ID, name="Coal", description="Coal samples"),
+                SampleType(id=TOMATO_ID, name="Tomato", description="Tomato samples"),
+            ]
+        )
         await session.flush()
-        session.add_all([
-            ExperimentTemplate(
-                id=PROXIMATE_TEMPLATE_ID,
-                sample_type_id=COAL_ID,
-                name="Proximate Analysis",
-                description="Determine moisture, ash, volatile matter, and fixed carbon",
-                template={
-                    "workerForm": {"title": "Proximate Form", "questions": []},
-                    "calculations": {"result": "value * 100"},
-                    "template": "Result: {{result}}%",
-                },
-            ),
-            ExperimentTemplate(
-                id=CALORIFIC_TEMPLATE_ID,
-                sample_type_id=COAL_ID,
-                name="Calorific Value",
-                description="Determine gross calorific value",
-                template={
-                    "workerForm": {"title": "Calorific Form", "questions": []},
-                    "calculations": {"gcv": "value * 4.1868"},
-                    "template": "GCV: {{gcv}} kJ/kg",
-                },
-            ),
-        ])
+        session.add_all(
+            [
+                ExperimentTemplate(
+                    id=PROXIMATE_TEMPLATE_ID,
+                    sample_type_id=COAL_ID,
+                    name="Proximate Analysis",
+                    description="Determine moisture, ash, volatile matter, and fixed carbon",
+                    template={
+                        "workerForm": {"title": "Proximate Form", "questions": []},
+                        "calculations": {"result": "value * 100"},
+                        "template": "Result: {{result}}%",
+                    },
+                ),
+                ExperimentTemplate(
+                    id=CALORIFIC_TEMPLATE_ID,
+                    sample_type_id=COAL_ID,
+                    name="Calorific Value",
+                    description="Determine gross calorific value",
+                    template={
+                        "workerForm": {"title": "Calorific Form", "questions": []},
+                        "calculations": {"gcv": "value * 4.1868"},
+                        "template": "GCV: {{gcv}} kJ/kg",
+                    },
+                ),
+            ]
+        )
         await session.commit()
 
 

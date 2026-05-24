@@ -57,13 +57,18 @@ async def create_experiment(
 
         sample = await sample_repo.get_sample_type(session, body.sample_id)
         if sample is None:
-            raise HTTPException(status_code=404, detail=f'Sample "{body.sample_id}" not found')
+            raise HTTPException(
+                status_code=404, detail=f'Sample "{body.sample_id}" not found'
+            )
 
         template_row = await sample_repo.get_template(
             session, body.sample_id, body.template_id
         )
         if template_row is None:
-            raise HTTPException(status_code=404, detail=f'Template "{body.template_id}" not found for sample "{body.sample_id}"')
+            raise HTTPException(
+                status_code=404,
+                detail=f'Template "{body.template_id}" not found for sample "{body.sample_id}"',
+            )
 
         state = {
             "sample_id": str(body.sample_id),
@@ -76,7 +81,9 @@ async def create_experiment(
             await session.commit()
         except IntegrityError:
             await session.rollback()
-            raise HTTPException(status_code=409, detail=f'Experiment "{body.exp_id}" already exists')
+            raise HTTPException(
+                status_code=409, detail=f'Experiment "{body.exp_id}" already exists'
+            )
 
         return _row_to_detail(row)
 

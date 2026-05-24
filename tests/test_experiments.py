@@ -60,7 +60,11 @@ async def test_create_experiment_unknown_sample_returns_404(client: AsyncClient)
 
 
 async def test_create_experiment_unknown_template_returns_404(client: AsyncClient):
-    body = {**_VALID_BODY, "exp_id": str(uuid.uuid4()), "template_id": str(uuid.uuid4())}
+    body = {
+        **_VALID_BODY,
+        "exp_id": str(uuid.uuid4()),
+        "template_id": str(uuid.uuid4()),
+    }
     assert (await client.post("/api/experiments", json=body)).status_code == 404
 
 
@@ -113,7 +117,9 @@ async def test_get_experiment_unknown_returns_404(client: AsyncClient):
 async def test_update_experiment_stores_state(client: AsyncClient):
     await client.post("/api/experiments", json=_VALID_BODY)
     body = (
-        await client.put(f"/api/experiments/{_EXP_ID}", json={"state": _STATE_WITH_VALUES})
+        await client.put(
+            f"/api/experiments/{_EXP_ID}", json={"state": _STATE_WITH_VALUES}
+        )
     ).json()
     assert body["state"]["crucible_mass"] == 1.23
     assert body["state"]["sample_mass"] == 4.56
@@ -122,7 +128,9 @@ async def test_update_experiment_stores_state(client: AsyncClient):
 async def test_update_experiment_returns_updated_state(client: AsyncClient):
     await client.post("/api/experiments", json=_VALID_BODY)
     body = (
-        await client.put(f"/api/experiments/{_EXP_ID}", json={"state": _STATE_WITH_VALUES})
+        await client.put(
+            f"/api/experiments/{_EXP_ID}", json={"state": _STATE_WITH_VALUES}
+        )
     ).json()
     assert body["state"]["id"] == str(PROXIMATE_TEMPLATE_ID)
     assert body["sample_id"] == str(COAL_ID)

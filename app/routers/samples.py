@@ -10,7 +10,8 @@ import app.services.sample_service as service
 from app.database import get_db
 from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
                         ExperimentTemplatesResponse, ExperimentTemplateUpdate,
-                        SampleCreate, SampleSummary, SamplesListResponse, SampleUpdate)
+                        SampleCreate, SamplesListResponse, SampleSummary,
+                        SampleUpdate)
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
@@ -88,7 +89,10 @@ async def get_experiment_template(
 
 @router.put("/{sample_id}/experiments/{template_id}")
 async def update_experiment_template(
-    sample_id: uuid.UUID, template_id: uuid.UUID, body: ExperimentTemplateUpdate, db: DbDep
+    sample_id: uuid.UUID,
+    template_id: uuid.UUID,
+    body: ExperimentTemplateUpdate,
+    db: DbDep,
 ) -> ExperimentTemplateDetail:
     result = await service.update_experiment_template(db, sample_id, template_id, body)
     if result is None:
