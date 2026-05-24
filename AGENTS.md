@@ -123,7 +123,7 @@ Returns 409 if `exp_id` already exists.
 {
   "sample_id": "uuid",
   "template_id": "uuid",
-  "state": {
+  "snapshot": {
     "id": "uuid",
     "name": "Proximate Analysis",
     "description": "...",
@@ -133,7 +133,7 @@ Returns 409 if `exp_id` already exists.
   }
 }
 ```
-`state.state` is the full template snapshot at creation time. On PUT the worker sends back the same blob with `"value"` added to each question — the whole `state` key is replaced, `sample_id` and `template_id` are preserved.
+`state.snapshot` is the full template snapshot at creation time. On PUT the worker sends back the same blob with `"value"` added to each question — the whole `snapshot` key is replaced, `sample_id` and `template_id` are preserved.
 
 ### ExperimentTemplate JSONB schema
 `experiment_templates.template` stores:

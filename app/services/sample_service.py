@@ -146,12 +146,16 @@ async def update_experiment_template(
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("template.id", str(template_id))
         template_data = body.model_dump(exclude={"name", "description"}, exclude_none=True)
-        row = await repo.update_template(
-            session, sample_id, template_id, body.name, body.description, template_data
-        )
-        if row is None:
-            return None
-        await session.commit()
+        try:
+            row = await repo.update_template(
+                session, sample_id, template_id, body.name, body.description, template_data
+            )
+            if row is None:
+                return None
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            raise HTTPException(status_code=409, detail=f'Experiment template "{body.name}" already exists for this sample')
         return _to_experiment_template_detail(row)
 
 
