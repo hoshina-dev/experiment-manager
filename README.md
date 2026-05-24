@@ -1,10 +1,15 @@
-# Experiment Manager — PoC
+# Experiment Manager
 
-A lightweight FastAPI proof-of-concept that stores and serves **experiment form configurations** backed by a local SQLite database.
+A FastAPI service that stores and serves **lab analysis templates** for experiment management. Clients request which analyses they want for a sample; the service returns the composed JSON form containing worker forms, calculation expressions, and output templates.
 
 ## Overview
 
-Forms capture the full definition of an experiment: a user-facing form, a worker-facing form, a set of named calculation expressions, and a template string. The API lets a front-end create, retrieve, update, and delete these configurations with no external database required.
+Each **sample type** (e.g. tomato, coal, environment water) has a set of **analysis templates**. A template contains:
+- `workerForm` — the fields a lab worker fills in
+- `calculations` — named expressions (JS syntax, evaluated by the frontend)
+- `template` — output string with `{{variable}}` placeholders
+
+The service is read-only — it serves templates, not experiment results.
 
 ## Tech stack
 
@@ -14,22 +19,36 @@ Forms capture the full definition of an experiment: a user-facing form, a worker
 | Validation | [Pydantic v2](https://docs.pydantic.dev/) |
 | Config | [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) |
 | Server | [Uvicorn](https://www.uvicorn.org/) |
-| Database | SQLite (stdlib `sqlite3`) |
+| Observability | [OpenTelemetry](https://opentelemetry.io/) |
 | Python | ≥ 3.12 |
 
 ## Project structure
 
 ```
-experiment-manager-poc/
-├── app/
-│   ├── config.py      # Settings loaded from env / .env
-│   ├── database.py    # Connection factory + schema bootstrap
-│   ├── models.py      # Pydantic models
-│   └── routers/
-│       └── forms.py   # CRUD endpoints at /api/forms
-├── main.py            # App factory (CORS, lifespan, routers)
-├── pyproject.toml
-└── .env.example
+main.py                        # App factory (CORS, OTEL, routers, lifespan)
+data/                          # Mock catalogue data (JSON) — mirrors future SQL schema
+  samples.json
+  {sample_id}/
+    {analysis_id}.json
+app/
+  config.py                    # Settings from env / .env
+  database.py                  # SQLite connection factory + schema bootstrap
+  models.py                    # Pydantic models (request + response)
+  observability/
+    telemetry.py               # OTEL TracerProvider setup
+  routers/
+    samples.py                 # /api/samples (catalogue, read-only)
+    experiments.py             # /api/experiments (CRUD)
+  services/
+    sample_service.py          # Catalogue business logic + OTEL spans
+    experiment_service.py      # Experiment business logic + OTEL spans
+  repositories/
+    sample_repository.py       # Reads JSON files from data/
+    experiment_repository.py   # SQLite CRUD for experiments
+tests/
+  conftest.py                  # Shared client fixture + test env overrides
+  test_samples.py
+  test_experiments.py
 ```
 
 ## Getting started
@@ -44,52 +63,52 @@ uv sync
 
 ```bash
 cp .env.example .env
-# Edit .env if you need a different DB path or CORS origin
 ```
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_DB_PATH` | `data.db` | Path to the SQLite file |
-| `APP_CORS_ORIGIN` | `http://localhost:3000` | Single allowed CORS origin |
+| `APP_CORS_ORIGIN` | `http://localhost:3000` | Allowed CORS origin |
+| `APP_OTEL_ENDPOINT` | _(none)_ | OTLP/HTTP trace endpoint; omit to print spans to stdout |
+| `APP_DB_PATH` | `experiments.db` | Path to the SQLite file for experiment storage |
 
 ### 3. Run the server
 
 ```bash
-make serve          # uv run uvicorn main:app --reload --port 8000
+make serve
 ```
 
-The interactive docs are available at [http://localhost:8000/docs](http://localhost:8000/docs).
+Interactive docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ## API
 
-All endpoints are under `/api/forms`.
+**Catalogue (read-only)**
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/forms` | List all forms (id, title, description) |
-| `POST` | `/api/forms` | Create a new form — returns `{"id": "..."}` |
-| `GET` | `/api/forms/{id}` | Fetch the full payload for a single form |
-| `PUT` | `/api/forms/{id}` | Upsert (create or fully replace) a form |
-| `DELETE` | `/api/forms/{id}` | Delete a form |
+| `GET` | `/api/samples` | List all sample types |
+| `GET` | `/api/samples/{sample_id}/analyses` | List available analyses for a sample (checklist) |
 
-### Form payload shape
+**Experiments (CRUD)**
 
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/experiments` | Create an experiment — snapshots selected templates, returns `exp_id` + full form |
+| `GET` | `/api/experiments` | List all experiments (summary, no form) |
+| `GET` | `/api/experiments/{exp_id}` | Get full experiment detail including form snapshot |
+| `PUT` | `/api/experiments/{exp_id}` | Update requested analyses and regenerate form snapshot |
+| `DELETE` | `/api/experiments/{exp_id}` | Delete an experiment |
+
+POST / PUT body:
 ```json
-{
-  "id": "my-experiment",
-  "title": "My Experiment",
-  "description": "Optional description",
-  "userForm": { "field": "value" },
-  "workerForm": { "field": "value" },
-  "calculations": { "result": "userForm.x + workerForm.y" },
-  "template": "Result: {{result}}"
-}
+{ "sample_id": "coal", "requested_analyses": ["calorific", "proximate"] }
 ```
+
+Unknown analysis IDs are silently ignored. `sample_id` cannot change on PUT.
 
 ## Development
 
 ```bash
-make clean          # remove data.db
+make test       # run pytest
+make lint       # black + isort check
+make format     # black + isort fix
 ```
-
-Formatting uses **black** and **isort** (both in the `dev` dependency group).

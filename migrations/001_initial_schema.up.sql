@@ -40,21 +40,21 @@ CREATE TABLE experiments (
 
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at   TIMESTAMPTZ,
+    deleted_at   TIMESTAMPTZ
 );
 
--- updated_at triggers
-CREATE OR REPLACE FUNCTION set_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- -- updated_at triggers
+-- CREATE OR REPLACE FUNCTION set_updated_at()
+-- RETURNS TRIGGER AS $$
+-- BEGIN
+--     NEW.updated_at = NOW();
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_sample_types_updated_at BEFORE UPDATE ON sample_types
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-CREATE TRIGGER trg_experiment_templates_updated_at BEFORE UPDATE ON experiment_templates
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-CREATE TRIGGER trg_experiments_updated_at BEFORE UPDATE ON experiments
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+-- CREATE TRIGGER trg_sample_types_updated_at BEFORE UPDATE ON sample_types
+--     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+-- CREATE TRIGGER trg_experiment_templates_updated_at BEFORE UPDATE ON experiment_templates
+--     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+-- CREATE TRIGGER trg_experiments_updated_at BEFORE UPDATE ON experiments
+--     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
