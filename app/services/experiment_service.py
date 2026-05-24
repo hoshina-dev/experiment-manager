@@ -43,7 +43,7 @@ def _row_to_detail(row) -> ExperimentDetail:
         exp_id=row.id,
         sample_id=state["sample_id"],
         template_id=state["template_id"],
-        state=state["state"],
+        state=state["snapshot"],
         created_at=row.created_at,
     )
 
@@ -68,7 +68,7 @@ async def create_experiment(
         state = {
             "sample_id": str(body.sample_id),
             "template_id": str(body.template_id),
-            "state": _full_template_snapshot(template_row),
+            "snapshot": _full_template_snapshot(template_row),
         }
 
         try:
@@ -106,7 +106,7 @@ async def update_experiment(
         if existing is None:
             return None
 
-        state = {**existing.state, "state": body.state}
+        state = {**existing.state, "snapshot": body.state}
 
         row = await experiment_repo.update(session, exp_id, state)
         await session.commit()
