@@ -42,6 +42,7 @@ def _row_to_detail(row) -> ExperimentDetail:
     return ExperimentDetail(
         exp_id=row.id,
         sample_id=state["sample_id"],
+        template_id=state["template_id"],
         state=state["state"],
         created_at=row.created_at,
     )
@@ -59,14 +60,14 @@ async def create_experiment(
             raise HTTPException(status_code=404, detail=f'Sample "{body.sample_id}" not found')
 
         template_row = await sample_repo.get_template(
-            session, body.sample_id, uuid.UUID(body.template_id)
+            session, body.sample_id, body.template_id
         )
         if template_row is None:
             raise HTTPException(status_code=404, detail=f'Template "{body.template_id}" not found for sample "{body.sample_id}"')
 
         state = {
             "sample_id": str(body.sample_id),
-            "template_id": body.template_id,
+            "template_id": str(body.template_id),
             "state": _full_template_snapshot(template_row),
         }
 

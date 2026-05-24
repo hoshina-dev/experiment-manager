@@ -22,7 +22,7 @@ class SamplesListResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Analysis template
+# Experiment template
 # ---------------------------------------------------------------------------
 
 
@@ -44,18 +44,18 @@ class WorkerForm(BaseModel):
     questions: list[FormQuestion]
 
 
-class AnalysisSummary(BaseModel):
+class ExperimentTemplateSummary(BaseModel):
     id: UUID
     name: str
     description: str | None = None
 
 
-class AnalysesListResponse(BaseModel):
+class ExperimentTemplatesResponse(BaseModel):
     sample_id: UUID
-    analyses: list[AnalysisSummary]
+    experiments: list[ExperimentTemplateSummary]
 
 
-class AnalysisTemplate(BaseModel):
+class ExperimentTemplateDetail(BaseModel):
     id: UUID
     name: str
     description: str | None = None
@@ -117,7 +117,7 @@ _CALORIFIC_EXAMPLE: dict[str, Any] = {
 }
 
 
-class TemplateCreate(BaseModel):
+class ExperimentTemplateCreate(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": _CALORIFIC_EXAMPLE})
 
     name: str
@@ -128,7 +128,7 @@ class TemplateCreate(BaseModel):
     template: str
 
 
-class TemplateUpdate(BaseModel):
+class ExperimentTemplateUpdate(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": _CALORIFIC_EXAMPLE})
 
     name: str
@@ -153,7 +153,7 @@ class ExperimentCreate(BaseModel):
 
     exp_id: UUID
     sample_id: UUID
-    template_id: str
+    template_id: UUID
 
 
 _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {"example": {
@@ -197,6 +197,7 @@ class ExperimentSummary(BaseModel):
 class ExperimentDetail(BaseModel):
     exp_id: UUID
     sample_id: UUID
+    template_id: UUID
     state: dict
     created_at: datetime
 

@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from tests.conftest import CALORIFIC_TEMPLATE_ID, COAL_ID, PROXIMATE_TEMPLATE_ID
 
 _NEW_SAMPLE = {"name": "Test Sample", "description": "For testing"}
-_NEW_TEMPLATE = {
+_NEW_EXPERIMENT_TEMPLATE = {
     "name": "Test Analysis",
     "description": "A test analysis",
     "workerForm": {"title": "Test Form", "questions": []},
@@ -100,115 +100,115 @@ async def test_delete_sample_unknown_returns_404(client: AsyncClient):
 
 
 # ---------------------------------------------------------------------------
-# GET /api/samples/{sample_id}/analyses
+# GET /api/samples/{sample_id}/experiments
 # ---------------------------------------------------------------------------
 
 
-async def test_list_analyses_returns_200(client: AsyncClient):
-    response = await client.get(f"/api/samples/{COAL_ID}/analyses")
+async def test_list_experiment_templates_returns_200(client: AsyncClient):
+    response = await client.get(f"/api/samples/{COAL_ID}/experiments")
     assert response.status_code == 200
-    assert "analyses" in response.json()
+    assert "experiments" in response.json()
 
 
-async def test_list_analyses_contains_seeded_templates(client: AsyncClient):
+async def test_list_experiment_templates_contains_seeded_templates(client: AsyncClient):
     names = [
         a["name"]
-        for a in (await client.get(f"/api/samples/{COAL_ID}/analyses")).json()["analyses"]
+        for a in (await client.get(f"/api/samples/{COAL_ID}/experiments")).json()["experiments"]
     ]
     assert "Proximate Analysis" in names
     assert "Calorific Value" in names
 
 
-async def test_list_analyses_unknown_sample_returns_404(client: AsyncClient):
+async def test_list_experiment_templates_unknown_sample_returns_404(client: AsyncClient):
     assert (
-        await client.get(f"/api/samples/{uuid.uuid4()}/analyses")
+        await client.get(f"/api/samples/{uuid.uuid4()}/experiments")
     ).status_code == 404
 
 
 # ---------------------------------------------------------------------------
-# POST /api/samples/{sample_id}/analyses
+# POST /api/samples/{sample_id}/experiments
 # ---------------------------------------------------------------------------
 
 
-async def test_create_analysis_returns_201(client: AsyncClient):
-    response = await client.post(f"/api/samples/{COAL_ID}/analyses", json=_NEW_TEMPLATE)
+async def test_create_experiment_template_returns_201(client: AsyncClient):
+    response = await client.post(f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE)
     assert response.status_code == 201
     assert response.json()["name"] == "Test Analysis"
 
 
-async def test_create_analysis_unknown_sample_returns_404(client: AsyncClient):
+async def test_create_experiment_template_unknown_sample_returns_404(client: AsyncClient):
     assert (
-        await client.post(f"/api/samples/{uuid.uuid4()}/analyses", json=_NEW_TEMPLATE)
+        await client.post(f"/api/samples/{uuid.uuid4()}/experiments", json=_NEW_EXPERIMENT_TEMPLATE)
     ).status_code == 404
 
 
 # ---------------------------------------------------------------------------
-# GET /api/samples/{sample_id}/analyses/{template_id}
+# GET /api/samples/{sample_id}/experiments/{template_id}
 # ---------------------------------------------------------------------------
 
 
-async def test_get_analysis_returns_200(client: AsyncClient):
+async def test_get_experiment_template_returns_200(client: AsyncClient):
     response = await client.get(
-        f"/api/samples/{COAL_ID}/analyses/{PROXIMATE_TEMPLATE_ID}"
+        f"/api/samples/{COAL_ID}/experiments/{PROXIMATE_TEMPLATE_ID}"
     )
     assert response.status_code == 200
     assert response.json()["name"] == "Proximate Analysis"
 
 
-async def test_get_analysis_unknown_returns_404(client: AsyncClient):
+async def test_get_experiment_template_unknown_returns_404(client: AsyncClient):
     assert (
-        await client.get(f"/api/samples/{COAL_ID}/analyses/{uuid.uuid4()}")
+        await client.get(f"/api/samples/{COAL_ID}/experiments/{uuid.uuid4()}")
     ).status_code == 404
 
 
 # ---------------------------------------------------------------------------
-# PUT /api/samples/{sample_id}/analyses/{template_id}
+# PUT /api/samples/{sample_id}/experiments/{template_id}
 # ---------------------------------------------------------------------------
 
 
-async def test_update_analysis_returns_200(client: AsyncClient):
+async def test_update_experiment_template_returns_200(client: AsyncClient):
     tid = (
-        await client.post(f"/api/samples/{COAL_ID}/analyses", json=_NEW_TEMPLATE)
+        await client.post(f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE)
     ).json()["id"]
-    updated = {**_NEW_TEMPLATE, "name": "Updated Analysis"}
-    response = await client.put(f"/api/samples/{COAL_ID}/analyses/{tid}", json=updated)
+    updated = {**_NEW_EXPERIMENT_TEMPLATE, "name": "Updated Analysis"}
+    response = await client.put(f"/api/samples/{COAL_ID}/experiments/{tid}", json=updated)
     assert response.status_code == 200
     assert response.json()["name"] == "Updated Analysis"
 
 
-async def test_update_analysis_unknown_returns_404(client: AsyncClient):
+async def test_update_experiment_template_unknown_returns_404(client: AsyncClient):
     assert (
         await client.put(
-            f"/api/samples/{COAL_ID}/analyses/{uuid.uuid4()}", json=_NEW_TEMPLATE
+            f"/api/samples/{COAL_ID}/experiments/{uuid.uuid4()}", json=_NEW_EXPERIMENT_TEMPLATE
         )
     ).status_code == 404
 
 
 # ---------------------------------------------------------------------------
-# DELETE /api/samples/{sample_id}/analyses/{template_id}
+# DELETE /api/samples/{sample_id}/experiments/{template_id}
 # ---------------------------------------------------------------------------
 
 
-async def test_delete_analysis_returns_204(client: AsyncClient):
+async def test_delete_experiment_template_returns_204(client: AsyncClient):
     tid = (
-        await client.post(f"/api/samples/{COAL_ID}/analyses", json=_NEW_TEMPLATE)
+        await client.post(f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE)
     ).json()["id"]
     assert (
-        await client.delete(f"/api/samples/{COAL_ID}/analyses/{tid}")
+        await client.delete(f"/api/samples/{COAL_ID}/experiments/{tid}")
     ).status_code == 204
 
 
-async def test_delete_analysis_is_gone_after_delete(client: AsyncClient):
+async def test_delete_experiment_template_is_gone_after_delete(client: AsyncClient):
     tid = (
-        await client.post(f"/api/samples/{COAL_ID}/analyses", json=_NEW_TEMPLATE)
+        await client.post(f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE)
     ).json()["id"]
-    await client.delete(f"/api/samples/{COAL_ID}/analyses/{tid}")
+    await client.delete(f"/api/samples/{COAL_ID}/experiments/{tid}")
     assert (
-        await client.get(f"/api/samples/{COAL_ID}/analyses/{tid}")
+        await client.get(f"/api/samples/{COAL_ID}/experiments/{tid}")
     ).status_code == 404
 
 
-async def test_delete_analysis_unknown_returns_404(client: AsyncClient):
+async def test_delete_experiment_template_unknown_returns_404(client: AsyncClient):
     assert (
-        await client.delete(f"/api/samples/{COAL_ID}/analyses/{uuid.uuid4()}")
+        await client.delete(f"/api/samples/{COAL_ID}/experiments/{uuid.uuid4()}")
     ).status_code == 404

@@ -9,15 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.repositories.sample_repository as repo
 from app.db_models import ExperimentTemplate
-from app.models import (AnalysesListResponse, AnalysisSummary, AnalysisTemplate,
-                        SamplesListResponse, SampleCreate, SampleSummary,
-                        SampleUpdate, TemplateCreate, TemplateUpdate)
+from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
+                        ExperimentTemplatesResponse, ExperimentTemplateSummary,
+                        ExperimentTemplateUpdate, SampleCreate, SampleSummary,
+                        SamplesListResponse, SampleUpdate)
 
 tracer = trace.get_tracer(__name__)
 
 
-def _template_to_analysis(t: ExperimentTemplate) -> AnalysisTemplate:
-    return AnalysisTemplate(
+def _to_experiment_template_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
+    return ExperimentTemplateDetail(
         id=t.id,
         name=t.name,
         description=t.description,
@@ -85,40 +86,40 @@ async def delete_sample(session: AsyncSession, sample_id: uuid.UUID) -> bool:
         return deleted
 
 
-async def get_analyses(
-    session: AsyncSession, sample_type_id: uuid.UUID
-) -> AnalysesListResponse | None:
-    with tracer.start_as_current_span("sample_service.get_analyses") as span:
-        span.set_attribute("sample.id", str(sample_type_id))
-        sample = await repo.get_sample_type(session, sample_type_id)
+async def get_experiment_templates(
+    session: AsyncSession, sample_id: uuid.UUID
+) -> ExperimentTemplatesResponse | None:
+    with tracer.start_as_current_span("sample_service.get_experiment_templates") as span:
+        span.set_attribute("sample.id", str(sample_id))
+        sample = await repo.get_sample_type(session, sample_id)
         if sample is None:
             return None
-        templates = await repo.list_templates(session, sample_type_id)
-        return AnalysesListResponse(
+        templates = await repo.list_templates(session, sample_id)
+        return ExperimentTemplatesResponse(
             sample_id=sample.id,
-            analyses=[
-                AnalysisSummary(id=t.id, name=t.name, description=t.description)
+            experiments=[
+                ExperimentTemplateSummary(id=t.id, name=t.name, description=t.description)
                 for t in templates
             ],
         )
 
 
-async def get_analysis(
+async def get_experiment_template(
     session: AsyncSession, sample_id: uuid.UUID, template_id: uuid.UUID
-) -> AnalysisTemplate | None:
-    with tracer.start_as_current_span("sample_service.get_analysis") as span:
+) -> ExperimentTemplateDetail | None:
+    with tracer.start_as_current_span("sample_service.get_experiment_template") as span:
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("template.id", str(template_id))
         row = await repo.get_template(session, sample_id, template_id)
         if row is None:
             return None
-        return _template_to_analysis(row)
+        return _to_experiment_template_detail(row)
 
 
-async def create_analysis(
-    session: AsyncSession, sample_id: uuid.UUID, body: TemplateCreate
-) -> AnalysisTemplate | None:
-    with tracer.start_as_current_span("sample_service.create_analysis") as span:
+async def create_experiment_template(
+    session: AsyncSession, sample_id: uuid.UUID, body: ExperimentTemplateCreate
+) -> ExperimentTemplateDetail | None:
+    with tracer.start_as_current_span("sample_service.create_experiment_template") as span:
         span.set_attribute("sample.id", str(sample_id))
         sample = await repo.get_sample_type(session, sample_id)
         if sample is None:
@@ -131,17 +132,17 @@ async def create_analysis(
             await session.commit()
         except IntegrityError:
             await session.rollback()
-            raise HTTPException(status_code=409, detail=f'Analysis "{body.name}" already exists for this sample')
-        return _template_to_analysis(row)
+            raise HTTPException(status_code=409, detail=f'Experiment template "{body.name}" already exists for this sample')
+        return _to_experiment_template_detail(row)
 
 
-async def update_analysis(
+async def update_experiment_template(
     session: AsyncSession,
     sample_id: uuid.UUID,
     template_id: uuid.UUID,
-    body: TemplateUpdate,
-) -> AnalysisTemplate | None:
-    with tracer.start_as_current_span("sample_service.update_analysis") as span:
+    body: ExperimentTemplateUpdate,
+) -> ExperimentTemplateDetail | None:
+    with tracer.start_as_current_span("sample_service.update_experiment_template") as span:
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("template.id", str(template_id))
         template_data = body.model_dump(exclude={"name", "description"}, exclude_none=True)
@@ -151,13 +152,13 @@ async def update_analysis(
         if row is None:
             return None
         await session.commit()
-        return _template_to_analysis(row)
+        return _to_experiment_template_detail(row)
 
 
-async def delete_analysis(
+async def delete_experiment_template(
     session: AsyncSession, sample_id: uuid.UUID, template_id: uuid.UUID
 ) -> bool:
-    with tracer.start_as_current_span("sample_service.delete_analysis") as span:
+    with tracer.start_as_current_span("sample_service.delete_experiment_template") as span:
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("template.id", str(template_id))
         deleted = await repo.delete_template(session, sample_id, template_id)

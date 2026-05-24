@@ -41,6 +41,7 @@ async def test_create_experiment_response_shape(client: AsyncClient):
     body = (await client.post("/api/experiments", json=_VALID_BODY)).json()
     assert body["exp_id"] == str(_EXP_ID)
     assert body["sample_id"] == str(COAL_ID)
+    assert body["template_id"] == str(PROXIMATE_TEMPLATE_ID)
     assert body["state"]["id"] == str(PROXIMATE_TEMPLATE_ID)
     assert body["state"]["name"] == "Proximate Analysis"
     assert "created_at" in body
