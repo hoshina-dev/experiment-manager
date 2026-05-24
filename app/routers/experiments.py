@@ -18,16 +18,12 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 @router.post("", response_model=ExperimentDetail, status_code=201)
 async def create_experiment(body: ExperimentCreate, db: DbDep) -> ExperimentDetail:
-    result = await service.create_experiment(db, body)
-    if result is None:
-        raise HTTPException(404, f'Sample "{body.sample_id}" not found')
-    return result
+    return await service.create_experiment(db, body)
 
 
 @router.get("", response_model=ExperimentsListResponse)
 async def list_experiments(db: DbDep) -> ExperimentsListResponse:
     return await service.list_experiments(db)
-
 
 
 @router.get("/{exp_id}", response_model=ExperimentDetail)

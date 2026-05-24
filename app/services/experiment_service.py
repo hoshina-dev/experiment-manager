@@ -49,20 +49,20 @@ def _row_to_detail(row) -> ExperimentDetail:
 
 async def create_experiment(
     session: AsyncSession, body: ExperimentCreate
-) -> ExperimentDetail | None:
+) -> ExperimentDetail:
     with tracer.start_as_current_span("experiment_service.create") as span:
         span.set_attribute("exp_id", str(body.exp_id))
         span.set_attribute("sample.id", str(body.sample_id))
 
         sample = await sample_repo.get_sample_type(session, body.sample_id)
         if sample is None:
-            return None
+            raise HTTPException(status_code=404, detail=f'Sample "{body.sample_id}" not found')
 
         template_row = await sample_repo.get_template(
             session, body.sample_id, uuid.UUID(body.template_id)
         )
         if template_row is None:
-            return None
+            raise HTTPException(status_code=404, detail=f'Template "{body.template_id}" not found for sample "{body.sample_id}"')
 
         state = {
             "sample_id": str(body.sample_id),
@@ -75,7 +75,7 @@ async def create_experiment(
             await session.commit()
         except IntegrityError:
             await session.rollback()
-            raise HTTPException(status_code=409, detail="exp_id already exists")
+            raise HTTPException(status_code=409, detail=f'Experiment "{body.exp_id}" already exists')
 
         return _row_to_detail(row)
 
@@ -119,5 +119,3 @@ async def delete_experiment(session: AsyncSession, exp_id: uuid.UUID) -> bool:
         if deleted:
             await session.commit()
         return deleted
-
-
