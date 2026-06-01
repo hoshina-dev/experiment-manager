@@ -77,7 +77,10 @@ cp .env.example .env
 make serve
 ```
 
-Interactive docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+API docs:
+
+- Swagger UI: [http://localhost:3000/docs](http://localhost:3000/docs)
+- Scalar UI: [http://localhost:3000/scalar](http://localhost:3000/scalar)
 
 ## API
 

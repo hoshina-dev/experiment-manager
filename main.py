@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from scalar_fastapi import get_scalar_api_reference
 
 from app.config import settings
 from app.observability.telemetry import setup_telemetry
@@ -32,6 +33,14 @@ def create_app() -> FastAPI:
 
     app.include_router(samples.router)
     app.include_router(experiments.router)
+
+    @app.get("/scalar", include_in_schema=False)
+    async def scalar_html():
+        return get_scalar_api_reference(
+            openapi_url=app.openapi_url,
+            title=app.title,
+        )
+
     return app
 
 
