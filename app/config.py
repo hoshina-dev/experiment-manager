@@ -8,7 +8,7 @@ def _dsn_to_async_url(dsn: str) -> str:
     """Convert a PostgreSQL key=value DSN to a SQLAlchemy async URL.
 
     Input:  host=localhost user=postgres password=postgres dbname=expman port=5432 sslmode=disable
-    Output: postgresql+psycopg://postgres:postgres@localhost:5432/expman
+    Output: postgresql+psycopg://postgres:postgres@localhost:5432/expman?client_encoding=utf8
     """
     parts: dict[str, str] = {}
     for token in dsn.strip().split():
@@ -19,7 +19,12 @@ def _dsn_to_async_url(dsn: str) -> str:
     host = parts.get("host", "localhost")
     port = parts.get("port", "5432")
     dbname = parts.get("dbname", "")
-    return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{dbname}"
+    base = f"postgresql+psycopg://{user}:{password}@{host}:{port}/{dbname}"
+    query = "client_encoding=utf8"
+    sslmode = parts.get("sslmode")
+    if sslmode:
+        query = f"sslmode={sslmode}&{query}"
+    return f"{base}?{query}"
 
 
 class Settings(BaseSettings):
