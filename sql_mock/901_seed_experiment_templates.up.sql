@@ -41,7 +41,7 @@ SELECT id, 'Proximate Analysis', 'Determine moisture, ash, volatile matter, and 
   "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%"
 }'::jsonb
 FROM sample_types WHERE name = 'Coal'
-ON CONFLICT (sample_type_id, name) DO NOTHING;
+ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 
 
 -- ── Coal / Calorific Value ────────────────────────────────────────
@@ -83,7 +83,7 @@ SELECT id, 'Calorific Value (GCV)', 'Determine gross calorific value by bomb cal
   "template": "GCV = {{gcv_cal_g}} cal/g ({{gcv_kj_kg}} kJ/kg)"
 }'::jsonb
 FROM sample_types WHERE name = 'Coal'
-ON CONFLICT (sample_type_id, name) DO NOTHING;
+ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 
 
 -- ── Coal / Sulfur Content Analysis ───────────────────────────────
@@ -124,7 +124,7 @@ SELECT id, 'Sulfur Content Analysis', 'Determine total sulfur content by titrime
   "template": "Sulfur content = {{sulfur_pct}}%"
 }'::jsonb
 FROM sample_types WHERE name = 'Coal'
-ON CONFLICT (sample_type_id, name) DO NOTHING;
+ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 
 
 -- ══════════════════════════════════════════════════════════════════
@@ -168,7 +168,7 @@ SELECT id, 'Moisture Analysis', 'Determine moisture content by drying method',
   "template": "Moisture content = {{moisture_pct}}%"
 }'::jsonb
 FROM sample_types WHERE name = 'Tomato'
-ON CONFLICT (sample_type_id, name) DO NOTHING;
+ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 
 
 -- ══════════════════════════════════════════════════════════════════
@@ -212,7 +212,7 @@ SELECT id, 'pH Measurement', 'Measure hydrogen ion concentration in water sample
   "template": "pH = {{ph_avg}} at {{temperature}}°C — {{status}}"
 }'::jsonb
 FROM sample_types WHERE name = 'Environment Water'
-ON CONFLICT (sample_type_id, name) DO NOTHING;
+ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 
 
 -- ── Environment Water / Turbidity Measurement ─────────────────────
@@ -252,4 +252,4 @@ SELECT id, 'Turbidity Measurement', 'Measure water clarity using a nephelometric
   "template": "Turbidity = {{ntu_avg}} NTU — {{exceeds_limit}} (5 NTU)"
 }'::jsonb
 FROM sample_types WHERE name = 'Environment Water'
-ON CONFLICT (sample_type_id, name) DO NOTHING;
+ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
