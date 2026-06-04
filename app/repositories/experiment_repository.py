@@ -8,6 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db_models import Experiment
 
+_REPORT_STATUS_PENDING = "pending"
+_REPORT_STATUS_PROCESSING = "processing"
+_REPORT_STATUS_SUCCESS = "success"
+_REPORT_STATUS_FAILED = "failed"
+
 
 async def create(
     session: AsyncSession,
@@ -66,3 +71,37 @@ async def delete(session: AsyncSession, exp_id: uuid.UUID) -> bool:
     experiment.deleted_at = datetime.now(timezone.utc)
     await session.flush()
     return True
+
+
+async def update_report_status(
+    session: AsyncSession, exp_id: uuid.UUID, status: str
+) -> None:
+    experiment = await get(session, exp_id)
+    if experiment is None:
+        return
+    experiment.report_status = status
+    await session.flush()
+
+
+async def update_report_success(
+    session: AsyncSession, exp_id: uuid.UUID, r2_key: str
+) -> None:
+    experiment = await get(session, exp_id)
+    if experiment is None:
+        return
+    experiment.report_status = _REPORT_STATUS_SUCCESS
+    experiment.report_r2_key = r2_key
+    experiment.report_generated_at = datetime.now(timezone.utc)
+    experiment.report_error = None
+    await session.flush()
+
+
+async def update_report_failure(
+    session: AsyncSession, exp_id: uuid.UUID, error: str
+) -> None:
+    experiment = await get(session, exp_id)
+    if experiment is None:
+        return
+    experiment.report_status = _REPORT_STATUS_FAILED
+    experiment.report_error = error
+    await session.flush()
