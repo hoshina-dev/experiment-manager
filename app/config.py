@@ -56,3 +56,31 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+class R2Settings(BaseSettings):
+    endpoint: str = ""
+    access_key: str = ""
+    secret_key: str = ""
+    bucket: str = ""
+    region: str = "auto"
+
+    model_config = SettingsConfigDict(
+        env_prefix="R2_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+
+class ReportWorkerSettings(BaseSettings):
+    max_threads: int = 2
+    queue_max_size: int = 50
+
+    model_config = SettingsConfigDict(
+        env_prefix="REPORT_WORKER_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+r2_settings = R2Settings()
+report_worker_settings = ReportWorkerSettings()
