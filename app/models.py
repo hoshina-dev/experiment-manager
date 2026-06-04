@@ -278,17 +278,25 @@ class ExperimentUpdate(BaseModel):
 
 
 class ExperimentSummary(BaseModel):
-    exp_id: UUID
+    id: UUID
     sample_id: UUID
     template_id: UUID
     created_at: datetime
 
 
 class ExperimentDetail(BaseModel):
-    exp_id: UUID
+    id: UUID
     sample_id: UUID
     template_id: UUID
-    state: dict
+    title: str
+    description: str | None = None
+    userForm: WorkerForm | None = None
+    workerForm: WorkerForm
+    calculations: dict[str, str]
+    template: str
+    report_status: str | None = None
+    report_r2_key: str | None = None
+    report_generated_at: datetime | None = None
     created_at: datetime
 
 

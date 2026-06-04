@@ -1,7 +1,7 @@
 -- Requires experiment_templates row with id='dd949e81-22ea-46b0-aa04-c0c80d22a9a2' to exist first (managed by experiment manager service).
-DELETE FROM pdf_templates WHERE exp_tmpl_id = 'dd949e81-22ea-46b0-aa04-c0c80d22a9a2';
+DELETE FROM pdf_templates WHERE template_id = 'dd949e81-22ea-46b0-aa04-c0c80d22a9a2';
 
-INSERT INTO pdf_templates (exp_tmpl_id, components)
+INSERT INTO pdf_templates (template_id, components)
 VALUES ('dd949e81-22ea-46b0-aa04-c0c80d22a9a2', '[
   {
     "id": "header_bg",
@@ -418,6 +418,6 @@ VALUES ('dd949e81-22ea-46b0-aa04-c0c80d22a9a2', '[
     }
   }
 ]'::jsonb)
-ON CONFLICT (exp_tmpl_id) DO UPDATE SET
+ON CONFLICT (template_id) DO UPDATE SET
     components = EXCLUDED.components,
     updated_at = NOW();

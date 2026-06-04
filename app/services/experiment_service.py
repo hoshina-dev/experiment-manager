@@ -30,7 +30,7 @@ def _full_template_snapshot(t: ExperimentTemplate) -> dict:
 def _row_to_summary(row) -> ExperimentSummary:
     state = row.state
     return ExperimentSummary(
-        exp_id=row.id,
+        id=row.id,
         sample_id=state["sample_id"],
         template_id=state["template_id"],
         created_at=row.created_at,
@@ -39,11 +39,20 @@ def _row_to_summary(row) -> ExperimentSummary:
 
 def _row_to_detail(row) -> ExperimentDetail:
     state = row.state
+    snapshot = state["snapshot"]
     return ExperimentDetail(
-        exp_id=row.id,
+        id=row.id,
         sample_id=state["sample_id"],
         template_id=state["template_id"],
-        state=state["snapshot"],
+        title=snapshot["name"],
+        description=snapshot.get("description"),
+        userForm=snapshot.get("userForm"),
+        workerForm=snapshot["workerForm"],
+        calculations=snapshot["calculations"],
+        template=snapshot["template"],
+        report_status=row.report_status,
+        report_r2_key=row.report_r2_key,
+        report_generated_at=row.report_generated_at,
         created_at=row.created_at,
     )
 
