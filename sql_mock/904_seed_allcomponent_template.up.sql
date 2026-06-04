@@ -1,6 +1,6 @@
 -- Requires experiment_templates row with id='dd949e81-22ea-46b0-aa04-c0c80d22a9a2' to exist first (managed by experiment manager service).
 
-INSERT INTO pdf_templates (exp_tmpl_id, components)
+INSERT INTO pdf_templates (template_id, components)
 VALUES ('dd949e81-22ea-46b0-aa04-c0c80d22a9a2', '[
   {"id":"header_bg","type":"shape","shape_type":"rect","rect":[0,742,612,50],"color":"#1A237E","stroke_width":0,"fill":true},
   {"id":"header_title","type":"text","content":"GROSS CALORIFIC VALUE REPORT","rect":[24,763,380,22],"style":{"font":"Helvetica","size":16,"bold":true,"italic":false,"align":"left","color":"#FFFFFF"}},
@@ -28,6 +28,6 @@ VALUES ('dd949e81-22ea-46b0-aa04-c0c80d22a9a2', '[
   {"id":"footer_line","type":"shape","shape_type":"line","rect":[50,58,512,2],"color":"#BDBDBD","stroke_width":0.5,"fill":false},
   {"id":"footer_text","type":"text","content":"GCV Analysis Report  |  Generated: {{analysis_date}}  |  Analyst: {{analyst_name}}","rect":[50,44,512,12],"style":{"font":"Helvetica","size":8,"bold":false,"italic":true,"align":"center","color":"#9E9E9E"}}
 ]'::jsonb)
-ON CONFLICT (exp_tmpl_id) DO UPDATE SET
+ON CONFLICT (template_id) DO UPDATE SET
     components = EXCLUDED.components,
     updated_at = NOW();
