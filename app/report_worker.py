@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 import app.repositories.experiment_repository as experiment_repo
+from app.pdf import generate_pdf
+from app.pdf.r2_client import upload_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +32,6 @@ class ReportJob:
 
 def _generate_and_upload(job: ReportJob, r2_key: str, cfg) -> None:
     """Synchronous worker — runs inside a subprocess via ProcessPoolExecutor."""
-    from app.pdf import generate_pdf
-    from app.pdf.r2_client import upload_pdf
-
     pdf_bytes = generate_pdf(job.experiment_data, job.pdf_components)
     upload_pdf(pdf_bytes, r2_key, cfg)
 

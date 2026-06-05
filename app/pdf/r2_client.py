@@ -38,6 +38,11 @@ def _client(cfg: R2Config):
     )
 
 
+def check_connection(cfg: R2Config) -> None:
+    """Verify R2 is reachable and the bucket exists. Raises on any failure."""
+    _client(cfg).head_bucket(Bucket=cfg.bucket)
+
+
 def upload_pdf(pdf_bytes: bytes, key: str, cfg: R2Config) -> None:
     """Upload PDF bytes to R2 at *key*. Raises on any error — no fallback."""
     _client(cfg).put_object(

@@ -1,12 +1,15 @@
 """CRUD repository for experiments against Postgres via SQLAlchemy async."""
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db_models import Experiment
+from app.db_models import Experiment, PdfTemplate
+
+logger = logging.getLogger(__name__)
 
 _REPORT_STATUS_PENDING = "pending"
 _REPORT_STATUS_PROCESSING = "processing"
@@ -73,11 +76,32 @@ async def delete(session: AsyncSession, exp_id: uuid.UUID) -> bool:
     return True
 
 
+async def list_pending_reports(session: AsyncSession) -> list[Experiment]:
+    result = await session.execute(
+        select(Experiment).where(
+            Experiment.report_status == _REPORT_STATUS_PENDING,
+            Experiment.deleted_at.is_(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def get_pdf_components(
+    session: AsyncSession, template_id: uuid.UUID
+) -> list:
+    result = await session.execute(
+        select(PdfTemplate).where(PdfTemplate.template_id == template_id)
+    )
+    row = result.scalar_one_or_none()
+    return row.components if row else []
+
+
 async def update_report_status(
     session: AsyncSession, exp_id: uuid.UUID, status: str
 ) -> None:
     experiment = await get(session, exp_id)
     if experiment is None:
+        logger.warning("update_report_status: experiment %s not found — status '%s' not written", exp_id, status)
         return
     experiment.report_status = status
     await session.flush()
@@ -88,6 +112,7 @@ async def update_report_success(
 ) -> None:
     experiment = await get(session, exp_id)
     if experiment is None:
+        logger.warning("update_report_success: experiment %s not found — success not written (r2_key=%s)", exp_id, r2_key)
         return
     experiment.report_status = _REPORT_STATUS_SUCCESS
     experiment.report_r2_key = r2_key
@@ -101,6 +126,7 @@ async def update_report_failure(
 ) -> None:
     experiment = await get(session, exp_id)
     if experiment is None:
+        logger.warning("update_report_failure: experiment %s not found — failure not written (error=%s)", exp_id, error)
         return
     experiment.report_status = _REPORT_STATUS_FAILED
     experiment.report_error = error

@@ -1,5 +1,6 @@
 """Business logic for experiments, with OTEL spans on every operation."""
 
+import asyncio
 import uuid
 
 from fastapi import HTTPException
@@ -12,48 +13,44 @@ import app.repositories.sample_repository as sample_repo
 from app.db_models import ExperimentTemplate
 from app.models import (ExperimentCreate, ExperimentDetail,
                         ExperimentsListResponse, ExperimentSummary,
-                        ExperimentUpdate)
+                        ExperimentUpdate, ReportDownloadResponse)
+from app.pdf.r2_client import presign_download
+from app.report_worker import ReportJob
 
 tracer = trace.get_tracer(__name__)
 
 
-def _full_template_snapshot(t: ExperimentTemplate) -> dict:
-    """Build the full template dict stored in experiment state."""
+def _build_state(
+    exp_id: uuid.UUID,
+    sample_id: uuid.UUID,
+    template_id: uuid.UUID,
+    t: ExperimentTemplate,
+) -> dict:
     return {
-        "id": str(t.id),
-        "name": t.name,
-        "description": t.description,
+        "id": str(exp_id),
+        "sample_id": str(sample_id),
+        "template_id": str(template_id),
         **t.template,
     }
 
 
 def _row_to_summary(row) -> ExperimentSummary:
-    state = row.state
     return ExperimentSummary(
-        id=row.id,
-        sample_id=state["sample_id"],
-        template_id=state["template_id"],
+        id=row.state["id"],
+        sample_id=row.state["sample_id"],
+        template_id=row.state["template_id"],
+        report_status=row.report_status,
         created_at=row.created_at,
     )
 
 
 def _row_to_detail(row) -> ExperimentDetail:
-    state = row.state
-    snapshot = state["snapshot"]
     return ExperimentDetail(
-        id=row.id,
-        sample_id=state["sample_id"],
-        template_id=state["template_id"],
-        title=snapshot["name"],
-        description=snapshot.get("description"),
-        userForm=snapshot.get("userForm"),
-        workerForm=snapshot["workerForm"],
-        calculations=snapshot["calculations"],
-        template=snapshot["template"],
         report_status=row.report_status,
         report_r2_key=row.report_r2_key,
         report_generated_at=row.report_generated_at,
         created_at=row.created_at,
+        **row.state,
     )
 
 
@@ -79,11 +76,7 @@ async def create_experiment(
                 detail=f'Template "{body.template_id}" not found for sample "{body.sample_id}"',
             )
 
-        state = {
-            "sample_id": str(body.sample_id),
-            "template_id": str(body.template_id),
-            "snapshot": _full_template_snapshot(template_row),
-        }
+        state = _build_state(body.exp_id, body.sample_id, body.template_id, template_row)
 
         try:
             row = await experiment_repo.create(session, body.exp_id, state)
@@ -122,7 +115,13 @@ async def update_experiment(
         if existing is None:
             return None
 
-        state = {**existing.state, "snapshot": body.state}
+        state = {
+            **existing.state,
+            "userForm": body.userForm,
+            "workerForm": body.workerForm.model_dump(),
+            "calculations": body.calculations,
+            "template": body.template,
+        }
 
         row = await experiment_repo.update(session, exp_id, state)
         await session.commit()
@@ -136,3 +135,62 @@ async def delete_experiment(session: AsyncSession, exp_id: uuid.UUID) -> bool:
         if deleted:
             await session.commit()
         return deleted
+
+
+async def request_report(
+    session: AsyncSession,
+    exp_id: uuid.UUID,
+    queue: asyncio.Queue,
+) -> None:
+    with tracer.start_as_current_span("experiment_service.request_report") as span:
+        span.set_attribute("exp.id", str(exp_id))
+
+        row = await experiment_repo.get(session, exp_id)
+        if row is None:
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
+
+        if row.report_status in ("pending", "processing"):
+            raise HTTPException(409, f'Report is already {row.report_status}')
+
+        pdf_components = await experiment_repo.get_pdf_components(
+            session, uuid.UUID(row.state["template_id"])
+        )
+        if not pdf_components:
+            raise HTTPException(422, "No PDF template defined for this experiment template")
+
+        job = ReportJob(
+            exp_id=exp_id,
+            experiment_data=row.state,
+            pdf_components=pdf_components,
+            template_name=row.state["title"],
+        )
+
+        try:
+            queue.put_nowait(job)
+        except asyncio.QueueFull:
+            raise HTTPException(503, "Report queue is full — try again later")
+
+        await experiment_repo.update_report_status(session, exp_id, "pending")
+        await session.commit()
+
+
+async def get_report_download_url(
+    session: AsyncSession,
+    exp_id: uuid.UUID,
+    r2_cfg,
+) -> ReportDownloadResponse:
+    with tracer.start_as_current_span("experiment_service.get_report_download_url") as span:
+        span.set_attribute("exp.id", str(exp_id))
+
+        row = await experiment_repo.get(session, exp_id)
+        if row is None:
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
+
+        if not row.report_r2_key:
+            raise HTTPException(404, "Report not yet available")
+
+        filename = f"{row.state['title']}.pdf"
+        expires_in = 900
+
+        url = presign_download(row.report_r2_key, r2_cfg, filename, expires_in)
+        return ReportDownloadResponse(url=url, expires_in=expires_in)

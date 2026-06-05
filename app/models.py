@@ -56,13 +56,7 @@ class ExperimentTemplatesResponse(BaseModel):
 
 
 class ExperimentTemplateDetail(BaseModel):
-    id: UUID
-    name: str
-    description: str | None = None
-    userForm: WorkerForm | None = None
-    workerForm: WorkerForm
-    calculations: dict[str, str]
-    template: str
+    model_config = ConfigDict(extra="allow")
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +98,7 @@ class SampleUpdate(BaseModel):
 
 
 _CALORIFIC_EXAMPLE: dict[str, Any] = {
-    "name": "Calorific Value (GCV)",
+    "title": "Calorific Value (GCV)",
     "description": "Determine gross calorific value by bomb calorimetry",
     "workerForm": {
         "title": "Calorific Value Form",
@@ -164,9 +158,9 @@ _CALORIFIC_EXAMPLE: dict[str, Any] = {
 class ExperimentTemplateCreate(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": _CALORIFIC_EXAMPLE})
 
-    name: str
+    title: str
     description: str | None = None
-    userForm: WorkerForm | None = None
+    userForm: dict | None = None
     workerForm: WorkerForm
     calculations: dict[str, str]
     template: str
@@ -175,9 +169,9 @@ class ExperimentTemplateCreate(BaseModel):
 class ExperimentTemplateUpdate(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": _CALORIFIC_EXAMPLE})
 
-    name: str
+    title: str
     description: str | None = None
-    userForm: WorkerForm | None = None
+    userForm: dict | None = None
     workerForm: WorkerForm
     calculations: dict[str, str]
     template: str
@@ -206,67 +200,18 @@ class ExperimentCreate(BaseModel):
 
 _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
     "example": {
-        "state": {
-            "id": "d59a46b2-28a5-4243-b894-c6ecf6309d02",
-            "name": "Calorific Value (GCV)",
-            "description": "Determine gross calorific value by bomb calorimetry",
-            "template": "GCV = {{gcv_cal_g}} cal/g ({{gcv_kj_kg}} kJ/kg)",
-            "workerForm": {
-                "title": "Calorific Value Form",
-                "description": "Record bomb calorimeter readings.",
-                "questions": [
-                    {
-                        "id": "sample_mass",
-                        "type": "number",
-                        "label": "Sample mass (g)",
-                        "required": True,
-                        "min": 0,
-                        "max": 10,
-                        "step": 0.001,
-                        "default": 1.0,
-                        "value": 1.023,
-                    },
-                    {
-                        "id": "water_equivalent",
-                        "type": "number",
-                        "label": "Water equivalent of calorimeter (cal/°C)",
-                        "required": True,
-                        "min": 1000,
-                        "max": 5000,
-                        "step": 0.1,
-                        "default": 2426.0,
-                        "value": 2426.0,
-                    },
-                    {
-                        "id": "temp_rise",
-                        "type": "number",
-                        "label": "Temperature rise (°C)",
-                        "required": True,
-                        "min": 0,
-                        "max": 10,
-                        "step": 0.001,
-                        "default": 2.5,
-                        "value": 3.142,
-                    },
-                    {
-                        "id": "fuse_correction",
-                        "type": "number",
-                        "label": "Fuse wire correction (cal)",
-                        "required": False,
-                        "min": 0,
-                        "max": 100,
-                        "step": 0.1,
-                        "default": 2.0,
-                        "value": 1.8,
-                    },
-                ],
-            },
-            "calculations": {
-                "fuse_corr": "fuse_correction || 0",
-                "gcv_cal_g": "Math.round((water_equivalent * temp_rise - fuse_corr) / sample_mass)",
-                "gcv_kj_kg": "Math.round(gcv_cal_g * 4.1868)",
-            },
-        }
+        "workerForm": {
+            "title": "Calorific Value Form",
+            "questions": [
+                {"id": "sample_mass", "type": "number", "value": 1.023},
+                {"id": "temp_rise", "type": "number", "value": 3.142},
+            ],
+        },
+        "calculations": {
+            "gcv_cal_g": "Math.round((water_equivalent * temp_rise) / sample_mass)",
+        },
+        "template": "GCV = {{gcv_cal_g}} cal/g",
+        "userForm": None,
     }
 }
 
@@ -274,26 +219,26 @@ _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
 class ExperimentUpdate(BaseModel):
     model_config = ConfigDict(json_schema_extra=_EXPERIMENT_UPDATE_EXAMPLE)
 
-    state: dict
+    workerForm: WorkerForm
+    calculations: dict[str, str]
+    template: str
+    userForm: dict | None = None
 
 
 class ExperimentSummary(BaseModel):
     id: UUID
     sample_id: UUID
     template_id: UUID
+    report_status: str | None = None
     created_at: datetime
 
 
 class ExperimentDetail(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     id: UUID
     sample_id: UUID
     template_id: UUID
-    title: str
-    description: str | None = None
-    userForm: WorkerForm | None = None
-    workerForm: WorkerForm
-    calculations: dict[str, str]
-    template: str
     report_status: str | None = None
     report_r2_key: str | None = None
     report_generated_at: datetime | None = None
@@ -302,3 +247,12 @@ class ExperimentDetail(BaseModel):
 
 class ExperimentsListResponse(BaseModel):
     experiments: list[ExperimentSummary]
+
+
+class ReportStatusResponse(BaseModel):
+    status: str
+
+
+class ReportDownloadResponse(BaseModel):
+    url: str
+    expires_in: int
