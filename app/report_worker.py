@@ -13,6 +13,7 @@ import uuid
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 import app.repositories.experiment_repository as experiment_repo
@@ -20,6 +21,7 @@ from app.pdf import generate_pdf
 from app.pdf.r2_client import upload_pdf
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -48,27 +50,34 @@ async def report_worker(
         job: ReportJob = await queue.get()
         r2_key = f"pdfs/{job.exp_id}.pdf"
 
-        try:
-            async with db_factory() as session:
-                await experiment_repo.update_report_status(session, job.exp_id, "processing")
-                await session.commit()
+        with tracer.start_as_current_span("report_worker.generate") as span:
+            span.set_attribute("exp.id", str(job.exp_id))
+            span.set_attribute("report.r2_key", r2_key)
 
-            await loop.run_in_executor(executor, _generate_and_upload, job, r2_key, r2_cfg)
-
-            async with db_factory() as session:
-                await experiment_repo.update_report_success(session, job.exp_id, r2_key)
-                await session.commit()
-
-        except Exception:
-            logger.exception("Report generation failed for exp_id=%s", job.exp_id)
             try:
                 async with db_factory() as session:
-                    await experiment_repo.update_report_failure(
-                        session, job.exp_id, f"Generation failed — see server logs"
-                    )
+                    await experiment_repo.update_report_status(session, job.exp_id, "processing")
                     await session.commit()
-            except Exception:
-                logger.exception("Failed to record report failure for exp_id=%s", job.exp_id)
 
-        finally:
-            queue.task_done()
+                await loop.run_in_executor(executor, _generate_and_upload, job, r2_key, r2_cfg)
+
+                span.set_attribute("report.status", "success")
+                async with db_factory() as session:
+                    await experiment_repo.update_report_success(session, job.exp_id, r2_key)
+                    await session.commit()
+
+            except Exception as exc:
+                span.set_attribute("report.status", "failed")
+                span.record_exception(exc)
+                logger.exception("Report generation failed for exp_id=%s", job.exp_id)
+                try:
+                    async with db_factory() as session:
+                        await experiment_repo.update_report_failure(
+                            session, job.exp_id, "Generation failed — see server logs"
+                        )
+                        await session.commit()
+                except Exception:
+                    logger.exception("Failed to record report failure for exp_id=%s", job.exp_id)
+
+            finally:
+                queue.task_done()
