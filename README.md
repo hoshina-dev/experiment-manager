@@ -51,6 +51,9 @@ Fill in `DATA_SOURCE_NAME` (Postgres DSN) and the `S3_*` variables (required —
 
 ```bash
 psql $DATABASE_URL -f migrations/001_initial_schema.up.sql
+psql $DATABASE_URL -f migrations/002_partial_unique_indexes.up.sql
+psql $DATABASE_URL -f migrations/003_report_initial_schema.up.sql
+psql $DATABASE_URL -f migrations/004_experiment_report_fields.up.sql
 psql $DATABASE_URL -f sql_mock/900_seed_samples.up.sql
 psql $DATABASE_URL -f sql_mock/901_seed_experiment_templates.up.sql
 psql $DATABASE_URL -f sql_mock/902_seed_heat_capacity_template.up.sql
@@ -132,7 +135,7 @@ An experiment's state is a flat JSON blob stored in Postgres. At creation it mir
 }
 ```
 
-On `PUT` the worker sends the same blob back with `"value"` filled into each question. `id`, `sample_id`, and `template_id` are immutable — the service overwrites any values the client sends for those fields.
+On `PUT` the worker sends the same blob back with `"value"` filled into each question. `id`, `sample_id`, and `template_id` are immutable — the service ignores any values the client sends for those fields.
 
 `GET /api/experiments/{exp_id}` returns this blob merged with report tracking fields: `report_status`, `report_r2_key`, `report_generated_at`, `created_at`.
 

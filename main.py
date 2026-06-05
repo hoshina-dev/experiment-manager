@@ -1,6 +1,7 @@
 """Application entry point for the Experiment Manager API."""
 
 import asyncio
+import logging
 import uuid
 from collections.abc import AsyncGenerator
 from concurrent.futures import ProcessPoolExecutor
@@ -9,8 +10,6 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from scalar_fastapi import get_scalar_api_reference
-
-import logging
 
 from app.config import r2_settings, report_worker_settings, settings
 from app.database import async_session_factory
