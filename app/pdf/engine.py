@@ -16,7 +16,9 @@ class TemplateEngine:
 
     def validate(self, context: dict[str, Any]) -> dict[str, str]:
         """Return missing-field errors keyed by field name. Empty dict means valid."""
-        return {f: f"Missing required field: {f}" for f in self.fields - set(context.keys())}
+        return {
+            f: f"Missing required field: {f}" for f in self.fields - set(context.keys())
+        }
 
     def build_context(self, context: dict[str, Any]) -> dict[str, Any]:
         """Expand {{template}} self-reference in context before rendering."""

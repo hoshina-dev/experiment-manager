@@ -32,7 +32,9 @@ def flatten_context(data: dict[str, Any]) -> dict[str, str]:
                     q_label = q.get("label", q_id)
                     if q_id and _VALID_KEY.match(q_id) and q_id not in context:
                         default = q.get("value", q.get("default"))
-                        if default is not None and isinstance(default, (str, int, float, bool)):
+                        if default is not None and isinstance(
+                            default, (str, int, float, bool)
+                        ):
                             context[q_id] = str(default)
                         else:
                             context[q_id] = f"[{q_label}]"
@@ -46,7 +48,9 @@ def flatten_context(data: dict[str, Any]) -> dict[str, str]:
             else:
                 for sub_key, sub_val in value.items():
                     flat = f"{key}_{sub_key}"
-                    if isinstance(sub_val, (str, int, float, bool)) and _VALID_KEY.match(flat):
+                    if isinstance(
+                        sub_val, (str, int, float, bool)
+                    ) and _VALID_KEY.match(flat):
                         context[flat] = str(sub_val)
 
     return context

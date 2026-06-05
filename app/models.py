@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Sample
@@ -76,7 +76,7 @@ class SampleCreate(BaseModel):
         }
     )
 
-    name: str
+    name: str = Field(min_length=1)
     description: str | None = None
 
 
@@ -90,7 +90,7 @@ class SampleUpdate(BaseModel):
         }
     )
 
-    name: str
+    name: str = Field(min_length=1)
     description: str | None = None
 
 
@@ -107,20 +107,65 @@ _PROXIMATE_EXAMPLE: dict[str, Any] = {
         "title": "Proximate Analysis Form",
         "description": "Record masses at each stage of the proximate analysis procedure.",
         "questions": [
-            {"id": "crucible_mass",       "type": "number", "label": "Crucible mass (g)",                               "required": True,  "min": 0, "max": 200, "step": 0.001, "default": 20.0},
-            {"id": "sample_mass",         "type": "number", "label": "Sample mass (g)",                                "required": True,  "min": 0, "max": 10,  "step": 0.001, "default": 1.0},
-            {"id": "mass_after_moisture", "type": "number", "label": "Mass after moisture drying at 105°C (g)",        "required": True,  "min": 0, "max": 200, "step": 0.001, "default": 20.8},
-            {"id": "mass_after_volatile", "type": "number", "label": "Mass after volatile matter removal at 900°C (g)","required": True,  "min": 0, "max": 200, "step": 0.001, "default": 20.5},
-            {"id": "mass_after_ash",      "type": "number", "label": "Mass after ashing at 750°C (g)",                 "required": True,  "min": 0, "max": 200, "step": 0.001, "default": 20.1},
+            {
+                "id": "crucible_mass",
+                "type": "number",
+                "label": "Crucible mass (g)",
+                "required": True,
+                "min": 0,
+                "max": 200,
+                "step": 0.001,
+                "default": 20.0,
+            },
+            {
+                "id": "sample_mass",
+                "type": "number",
+                "label": "Sample mass (g)",
+                "required": True,
+                "min": 0,
+                "max": 10,
+                "step": 0.001,
+                "default": 1.0,
+            },
+            {
+                "id": "mass_after_moisture",
+                "type": "number",
+                "label": "Mass after moisture drying at 105°C (g)",
+                "required": True,
+                "min": 0,
+                "max": 200,
+                "step": 0.001,
+                "default": 20.8,
+            },
+            {
+                "id": "mass_after_volatile",
+                "type": "number",
+                "label": "Mass after volatile matter removal at 900°C (g)",
+                "required": True,
+                "min": 0,
+                "max": 200,
+                "step": 0.001,
+                "default": 20.5,
+            },
+            {
+                "id": "mass_after_ash",
+                "type": "number",
+                "label": "Mass after ashing at 750°C (g)",
+                "required": True,
+                "min": 0,
+                "max": 200,
+                "step": 0.001,
+                "default": 20.1,
+            },
         ],
     },
     "calculations": {
-        "moisture_loss":    "crucible_mass + sample_mass - mass_after_moisture",
-        "volatile_loss":    "mass_after_moisture - mass_after_volatile",
-        "ash_mass":         "mass_after_ash - crucible_mass",
-        "moisture_pct":     "Math.round(1000 * moisture_loss / sample_mass) / 10",
-        "volatile_pct":     "Math.round(1000 * volatile_loss / sample_mass) / 10",
-        "ash_pct":          "Math.round(1000 * ash_mass / sample_mass) / 10",
+        "moisture_loss": "crucible_mass + sample_mass - mass_after_moisture",
+        "volatile_loss": "mass_after_moisture - mass_after_volatile",
+        "ash_mass": "mass_after_ash - crucible_mass",
+        "moisture_pct": "Math.round(1000 * moisture_loss / sample_mass) / 10",
+        "volatile_pct": "Math.round(1000 * volatile_loss / sample_mass) / 10",
+        "ash_pct": "Math.round(1000 * ash_mass / sample_mass) / 10",
         "fixed_carbon_pct": "Math.round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10",
     },
     "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%",
@@ -176,20 +221,70 @@ _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
             "title": "Proximate Analysis Form",
             "description": "Record masses at each stage of the proximate analysis procedure.",
             "questions": [
-                {"id": "crucible_mass",       "type": "number", "label": "Crucible mass (g)",                               "required": True,  "min": 0, "max": 200, "step": 0.001, "default": 20.0,  "value": 21.354},
-                {"id": "sample_mass",         "type": "number", "label": "Sample mass (g)",                                "required": True,  "min": 0, "max": 10,  "step": 0.001, "default": 1.0,   "value": 1.001},
-                {"id": "mass_after_moisture", "type": "number", "label": "Mass after moisture drying at 105°C (g)",        "required": True,  "min": 0, "max": 200, "step": 0.001, "default": 20.8,  "value": 22.247},
-                {"id": "mass_after_volatile", "type": "number", "label": "Mass after volatile matter removal at 900°C (g)","required": True,  "min": 0, "max": 200, "step": 0.001, "default": 20.5,  "value": 21.891},
-                {"id": "mass_after_ash",      "type": "number", "label": "Mass after ashing at 750°C (g)",                 "required": True,  "min": 0, "max": 200, "step": 0.001, "default": 20.1,  "value": 21.501},
+                {
+                    "id": "crucible_mass",
+                    "type": "number",
+                    "label": "Crucible mass (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 200,
+                    "step": 0.001,
+                    "default": 20.0,
+                    "value": 21.354,
+                },
+                {
+                    "id": "sample_mass",
+                    "type": "number",
+                    "label": "Sample mass (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 10,
+                    "step": 0.001,
+                    "default": 1.0,
+                    "value": 1.001,
+                },
+                {
+                    "id": "mass_after_moisture",
+                    "type": "number",
+                    "label": "Mass after moisture drying at 105°C (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 200,
+                    "step": 0.001,
+                    "default": 20.8,
+                    "value": 22.247,
+                },
+                {
+                    "id": "mass_after_volatile",
+                    "type": "number",
+                    "label": "Mass after volatile matter removal at 900°C (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 200,
+                    "step": 0.001,
+                    "default": 20.5,
+                    "value": 21.891,
+                },
+                {
+                    "id": "mass_after_ash",
+                    "type": "number",
+                    "label": "Mass after ashing at 750°C (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 200,
+                    "step": 0.001,
+                    "default": 20.1,
+                    "value": 21.501,
+                },
             ],
         },
         "calculations": {
-            "moisture_loss":    "crucible_mass + sample_mass - mass_after_moisture",
-            "volatile_loss":    "mass_after_moisture - mass_after_volatile",
-            "ash_mass":         "mass_after_ash - crucible_mass",
-            "moisture_pct":     "Math.round(1000 * moisture_loss / sample_mass) / 10",
-            "volatile_pct":     "Math.round(1000 * volatile_loss / sample_mass) / 10",
-            "ash_pct":          "Math.round(1000 * ash_mass / sample_mass) / 10",
+            "moisture_loss": "crucible_mass + sample_mass - mass_after_moisture",
+            "volatile_loss": "mass_after_moisture - mass_after_volatile",
+            "ash_mass": "mass_after_ash - crucible_mass",
+            "moisture_pct": "Math.round(1000 * moisture_loss / sample_mass) / 10",
+            "volatile_pct": "Math.round(1000 * volatile_loss / sample_mass) / 10",
+            "ash_pct": "Math.round(1000 * ash_mass / sample_mass) / 10",
             "fixed_carbon_pct": "Math.round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10",
         },
         "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%",

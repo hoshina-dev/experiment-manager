@@ -41,17 +41,23 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
                 session, uuid.UUID(exp.state["template_id"])
             )
             try:
-                queue.put_nowait(ReportJob(
-                    exp_id=exp.id,
-                    experiment_data=exp.state,
-                    pdf_components=components,
-                    template_name=exp.state["title"],
-                ))
+                queue.put_nowait(
+                    ReportJob(
+                        exp_id=exp.id,
+                        experiment_data=exp.state,
+                        pdf_components=components,
+                        template_name=exp.state["title"],
+                    )
+                )
                 logger.info("Requeued orphaned report job for exp_id=%s", exp.id)
             except asyncio.QueueFull:
-                logger.warning("Queue full at recovery — marking exp_id=%s as failed", exp.id)
+                logger.warning(
+                    "Queue full at recovery — marking exp_id=%s as failed", exp.id
+                )
                 await experiment_repo.update_report_failure(
-                    session, exp.id, "Lost during server restart — queue full at recovery"
+                    session,
+                    exp.id,
+                    "Lost during server restart — queue full at recovery",
                 )
         await session.commit()
     worker_task = asyncio.create_task(

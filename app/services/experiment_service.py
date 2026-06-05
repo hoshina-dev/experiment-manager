@@ -76,7 +76,9 @@ async def create_experiment(
                 detail=f'Template "{body.template_id}" not found for sample "{body.sample_id}"',
             )
 
-        state = _build_state(body.exp_id, body.sample_id, body.template_id, template_row)
+        state = _build_state(
+            body.exp_id, body.sample_id, body.template_id, template_row
+        )
 
         try:
             row = await experiment_repo.create(session, body.exp_id, state)
@@ -150,13 +152,15 @@ async def request_report(
             raise HTTPException(404, f'Experiment "{exp_id}" not found')
 
         if row.report_status in ("pending", "processing"):
-            raise HTTPException(409, f'Report is already {row.report_status}')
+            raise HTTPException(409, f"Report is already {row.report_status}")
 
         pdf_components = await experiment_repo.get_pdf_components(
             session, uuid.UUID(row.state["template_id"])
         )
         if not pdf_components:
-            raise HTTPException(422, "No PDF template defined for this experiment template")
+            raise HTTPException(
+                422, "No PDF template defined for this experiment template"
+            )
 
         job = ReportJob(
             exp_id=exp_id,
@@ -179,7 +183,9 @@ async def get_report_download_url(
     exp_id: uuid.UUID,
     r2_cfg,
 ) -> ReportDownloadResponse:
-    with tracer.start_as_current_span("experiment_service.get_report_download_url") as span:
+    with tracer.start_as_current_span(
+        "experiment_service.get_report_download_url"
+    ) as span:
         span.set_attribute("exp.id", str(exp_id))
 
         row = await experiment_repo.get(session, exp_id)

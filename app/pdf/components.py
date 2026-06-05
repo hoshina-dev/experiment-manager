@@ -81,7 +81,9 @@ def component_from_dict(data: dict[str, Any]) -> Component:
 
     if comp_type == "text":
         if "rect" not in data:
-            raise ValueError(f"Text component {comp_id!r} missing required 'rect' field")
+            raise ValueError(
+                f"Text component {comp_id!r} missing required 'rect' field"
+            )
         rect = Rect.from_list(data["rect"])
         s = data.get("style", {})
         style = TextStyle(
@@ -102,7 +104,9 @@ def component_from_dict(data: dict[str, Any]) -> Component:
 
     elif comp_type == "shape":
         if "rect" not in data:
-            raise ValueError(f"Shape component {comp_id!r} missing required 'rect' field")
+            raise ValueError(
+                f"Shape component {comp_id!r} missing required 'rect' field"
+            )
         rect = Rect.from_list(data["rect"])
         return ShapeComponent(
             id=comp_id,

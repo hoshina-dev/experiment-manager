@@ -53,7 +53,9 @@ def upload_pdf(pdf_bytes: bytes, key: str, cfg: R2Config) -> None:
     )
 
 
-def presign_download(key: str, cfg: R2Config, filename: str, expires_in: int = 900) -> str:
+def presign_download(
+    key: str, cfg: R2Config, filename: str, expires_in: int = 900
+) -> str:
     """Return a presigned GET URL for *key* with a suggested download filename.
 
     The ResponseContentDisposition is signed into the URL so it cannot be

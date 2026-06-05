@@ -28,7 +28,9 @@ def render_pdf(components: list, context: dict[str, Any]) -> bytes:
     page_width, _ = letter
     c.setTitle("PDF Report")
 
-    total_pages = sum(1 for comp in components if isinstance(comp, PageBreakComponent)) + 1
+    total_pages = (
+        sum(1 for comp in components if isinstance(comp, PageBreakComponent)) + 1
+    )
     current_page = 1
 
     def _draw_page_number() -> None:

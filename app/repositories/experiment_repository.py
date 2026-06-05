@@ -86,9 +86,7 @@ async def list_pending_reports(session: AsyncSession) -> list[Experiment]:
     return list(result.scalars().all())
 
 
-async def get_pdf_components(
-    session: AsyncSession, template_id: uuid.UUID
-) -> list:
+async def get_pdf_components(session: AsyncSession, template_id: uuid.UUID) -> list:
     result = await session.execute(
         select(PdfTemplate).where(PdfTemplate.template_id == template_id)
     )
@@ -101,7 +99,11 @@ async def update_report_status(
 ) -> None:
     experiment = await get(session, exp_id)
     if experiment is None:
-        logger.warning("update_report_status: experiment %s not found — status '%s' not written", exp_id, status)
+        logger.warning(
+            "update_report_status: experiment %s not found — status '%s' not written",
+            exp_id,
+            status,
+        )
         return
     experiment.report_status = status
     await session.flush()
@@ -112,7 +114,11 @@ async def update_report_success(
 ) -> None:
     experiment = await get(session, exp_id)
     if experiment is None:
-        logger.warning("update_report_success: experiment %s not found — success not written (r2_key=%s)", exp_id, r2_key)
+        logger.warning(
+            "update_report_success: experiment %s not found — success not written (r2_key=%s)",
+            exp_id,
+            r2_key,
+        )
         return
     experiment.report_status = _REPORT_STATUS_SUCCESS
     experiment.report_r2_key = r2_key
@@ -126,7 +132,11 @@ async def update_report_failure(
 ) -> None:
     experiment = await get(session, exp_id)
     if experiment is None:
-        logger.warning("update_report_failure: experiment %s not found — failure not written (error=%s)", exp_id, error)
+        logger.warning(
+            "update_report_failure: experiment %s not found — failure not written (error=%s)",
+            exp_id,
+            error,
+        )
         return
     experiment.report_status = _REPORT_STATUS_FAILED
     experiment.report_error = error

@@ -16,7 +16,9 @@ router = APIRouter(prefix="/api/experiments", tags=["reports"])
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 
-@router.post("/{exp_id}/report/generate", response_model=ReportStatusResponse, status_code=202)
+@router.post(
+    "/{exp_id}/report/generate", response_model=ReportStatusResponse, status_code=202
+)
 async def generate_report(
     exp_id: uuid.UUID,
     request: Request,
