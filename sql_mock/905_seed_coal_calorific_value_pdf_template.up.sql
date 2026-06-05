@@ -1,8 +1,6 @@
--- Requires experiment_templates row with id='dd949e81-22ea-46b0-aa04-c0c80d22a9a2' to exist first (managed by experiment manager service).
-DELETE FROM pdf_templates WHERE template_id = 'dd949e81-22ea-46b0-aa04-c0c80d22a9a2';
-
+-- Requires 901_seed_experiment_templates + 903_seed_coal_calorific_value_experiment_template applied first.
 INSERT INTO pdf_templates (template_id, components)
-VALUES ('dd949e81-22ea-46b0-aa04-c0c80d22a9a2', '[
+SELECT et.id, '[
   {
     "id": "header_bg",
     "type": "shape",
@@ -417,7 +415,12 @@ VALUES ('dd949e81-22ea-46b0-aa04-c0c80d22a9a2', '[
       "align": "right"
     }
   }
-]'::jsonb)
+]'::jsonb
+FROM experiment_templates et
+JOIN sample_types st ON et.sample_type_id = st.id
+WHERE et.name = 'Calorific Value (GCV)'
+  AND st.name = 'Coal'
+  AND et.deleted_at IS NULL
 ON CONFLICT (template_id) DO UPDATE SET
     components = EXCLUDED.components,
     updated_at = NOW();

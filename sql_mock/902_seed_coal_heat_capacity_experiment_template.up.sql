@@ -3,6 +3,8 @@ SELECT st.id,
        'Heat Capacity Analysis',
        'Bomb-calorimeter determination of specific and molar heat capacity',
        '{
+  "title": "Heat Capacity Analysis",
+  "description": "Bomb-calorimeter determination of specific and molar heat capacity",
   "userForm": {
     "title": "Sample Information",
     "description": "Details of the specimen submitted for analysis.",

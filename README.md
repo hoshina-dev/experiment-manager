@@ -57,7 +57,11 @@ psql $DATABASE_URL -f migrations/004_experiment_report_fields.up.sql
 psql $DATABASE_URL -f sql_mock/900_seed_samples.up.sql
 psql $DATABASE_URL -f sql_mock/901_seed_experiment_templates.up.sql
 psql $DATABASE_URL -f sql_mock/902_seed_heat_capacity_template.up.sql
-psql $DATABASE_URL -f sql_mock/903_seed_charcoal_template.up.sql
+psql $DATABASE_URL -f sql_mock/903_seed_coal_calorific_value_experiment_template.up.sql
+psql $DATABASE_URL -f sql_mock/904_seed_coal_heat_capacity_pdf_template.up.sql
+psql $DATABASE_URL -f sql_mock/905_seed_coal_calorific_value_pdf_template.up.sql
+psql $DATABASE_URL -f sql_mock/906_seed_coal_heat_capacity_experiment.up.sql
+psql $DATABASE_URL -f sql_mock/907_seed_coal_calorific_value_experiment.up.sql
 ```
 
 ### 4. Run the server
