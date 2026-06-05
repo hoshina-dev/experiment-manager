@@ -35,7 +35,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     executor = ProcessPoolExecutor(max_workers=report_worker_settings.max_threads)
 
     async with async_session_factory() as session:
-        orphaned = await experiment_repo.list_pending_reports(session)
+        orphaned = await experiment_repo.list_orphaned_reports(session)
         for exp in orphaned:
             components = await experiment_repo.get_pdf_components(
                 session, uuid.UUID(exp.state["template_id"])
@@ -49,7 +49,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
                         template_name=exp.state["title"],
                     )
                 )
-                logger.info("Requeued orphaned report job for exp_id=%s", exp.id)
+                await experiment_repo.update_report_status(session, exp.id, "pending")
+                logger.info("Requeued orphaned report job for exp_id=%s (was: %s)", exp.id, exp.report_status)
             except asyncio.QueueFull:
                 logger.warning(
                     "Queue full at recovery — marking exp_id=%s as failed", exp.id

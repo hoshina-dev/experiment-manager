@@ -76,10 +76,12 @@ async def delete(session: AsyncSession, exp_id: uuid.UUID) -> bool:
     return True
 
 
-async def list_pending_reports(session: AsyncSession) -> list[Experiment]:
+async def list_orphaned_reports(session: AsyncSession) -> list[Experiment]:
     result = await session.execute(
         select(Experiment).where(
-            Experiment.report_status == _REPORT_STATUS_PENDING,
+            Experiment.report_status.in_(
+                [_REPORT_STATUS_PENDING, _REPORT_STATUS_PROCESSING]
+            ),
             Experiment.deleted_at.is_(None),
         )
     )
