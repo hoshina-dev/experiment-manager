@@ -61,3 +61,45 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+class R2Settings(BaseSettings):
+    endpoint: str = Field(default="")
+    access_key: str = Field(default="")
+    secret_key: str = Field(default="")
+    bucket: str = Field(default="")
+    region: str = "auto"
+
+    model_config = SettingsConfigDict(
+        env_prefix="S3_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    @field_validator("bucket", mode="after")
+    @classmethod
+    def require_bucket(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("S3_BUCKET environment variable is required")
+        return v
+
+    @field_validator("endpoint", mode="after")
+    @classmethod
+    def require_endpoint(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("S3_ENDPOINT environment variable is required")
+        return v
+
+
+class ReportWorkerSettings(BaseSettings):
+    max_threads: int = 2
+    queue_max_size: int = 50
+
+    model_config = SettingsConfigDict(
+        env_prefix="REPORT_WORKER_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+r2_settings = R2Settings()
+report_worker_settings = ReportWorkerSettings()

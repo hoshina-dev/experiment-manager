@@ -1,0 +1,1 @@
+DELETE FROM experiments WHERE id = '7b1e39a5-86e2-433f-a194-397061316cb6';

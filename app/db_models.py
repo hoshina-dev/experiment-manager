@@ -78,6 +78,32 @@ class ExperimentTemplate(TimestampMixin, Base):
     template: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
     sample_type: Mapped["SampleType"] = relationship(back_populates="templates")
+    pdf_template: Mapped["PdfTemplate | None"] = relationship(
+        back_populates="experiment_template", uselist=False
+    )
+
+
+class PdfTemplate(Base):
+    """PDF component definitions for an experiment template (1-1 with ExperimentTemplate)."""
+
+    __tablename__ = "pdf_templates"
+
+    template_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("experiment_templates.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    components: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    experiment_template: Mapped["ExperimentTemplate"] = relationship(
+        back_populates="pdf_template"
+    )
 
 
 class Experiment(TimestampMixin, Base):
@@ -87,3 +113,10 @@ class Experiment(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
     state: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    report_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    report_r2_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_generated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    report_error: Mapped[str | None] = mapped_column(Text, nullable=True)

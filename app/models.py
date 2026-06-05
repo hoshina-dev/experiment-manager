@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Sample
@@ -56,13 +56,9 @@ class ExperimentTemplatesResponse(BaseModel):
 
 
 class ExperimentTemplateDetail(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     id: UUID
-    name: str
-    description: str | None = None
-    userForm: WorkerForm | None = None
-    workerForm: WorkerForm
-    calculations: dict[str, str]
-    template: str
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +76,7 @@ class SampleCreate(BaseModel):
         }
     )
 
-    name: str
+    name: str = Field(min_length=1)
     description: str | None = None
 
 
@@ -94,7 +90,7 @@ class SampleUpdate(BaseModel):
         }
     )
 
-    name: str
+    name: str = Field(min_length=1)
     description: str | None = None
 
 
@@ -103,13 +99,24 @@ class SampleUpdate(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-_CALORIFIC_EXAMPLE: dict[str, Any] = {
-    "name": "Calorific Value (GCV)",
-    "description": "Determine gross calorific value by bomb calorimetry",
+_PROXIMATE_EXAMPLE: dict[str, Any] = {
+    "title": "Proximate Analysis",
+    "description": "Determine moisture, ash, volatile matter, and fixed carbon content",
+    "userForm": None,
     "workerForm": {
-        "title": "Calorific Value Form",
-        "description": "Record bomb calorimeter readings.",
+        "title": "Proximate Analysis Form",
+        "description": "Record masses at each stage of the proximate analysis procedure.",
         "questions": [
+            {
+                "id": "crucible_mass",
+                "type": "number",
+                "label": "Crucible mass (g)",
+                "required": True,
+                "min": 0,
+                "max": 200,
+                "step": 0.001,
+                "default": 20.0,
+            },
             {
                 "id": "sample_mass",
                 "type": "number",
@@ -121,63 +128,67 @@ _CALORIFIC_EXAMPLE: dict[str, Any] = {
                 "default": 1.0,
             },
             {
-                "id": "water_equivalent",
+                "id": "mass_after_moisture",
                 "type": "number",
-                "label": "Water equivalent of calorimeter (cal/°C)",
-                "required": True,
-                "min": 1000,
-                "max": 5000,
-                "step": 0.1,
-                "default": 2426.0,
-            },
-            {
-                "id": "temp_rise",
-                "type": "number",
-                "label": "Temperature rise (°C)",
+                "label": "Mass after moisture drying at 105°C (g)",
                 "required": True,
                 "min": 0,
-                "max": 10,
+                "max": 200,
                 "step": 0.001,
-                "default": 2.5,
+                "default": 20.8,
             },
             {
-                "id": "fuse_correction",
+                "id": "mass_after_volatile",
                 "type": "number",
-                "label": "Fuse wire correction (cal)",
-                "required": False,
+                "label": "Mass after volatile matter removal at 900°C (g)",
+                "required": True,
                 "min": 0,
-                "max": 100,
-                "step": 0.1,
-                "default": 2.0,
+                "max": 200,
+                "step": 0.001,
+                "default": 20.5,
+            },
+            {
+                "id": "mass_after_ash",
+                "type": "number",
+                "label": "Mass after ashing at 750°C (g)",
+                "required": True,
+                "min": 0,
+                "max": 200,
+                "step": 0.001,
+                "default": 20.1,
             },
         ],
     },
     "calculations": {
-        "fuse_corr": "fuse_correction || 0",
-        "gcv_cal_g": "Math.round((water_equivalent * temp_rise - fuse_corr) / sample_mass)",
-        "gcv_kj_kg": "Math.round(gcv_cal_g * 4.1868)",
+        "moisture_loss": "crucible_mass + sample_mass - mass_after_moisture",
+        "volatile_loss": "mass_after_moisture - mass_after_volatile",
+        "ash_mass": "mass_after_ash - crucible_mass",
+        "moisture_pct": "Math.round(1000 * moisture_loss / sample_mass) / 10",
+        "volatile_pct": "Math.round(1000 * volatile_loss / sample_mass) / 10",
+        "ash_pct": "Math.round(1000 * ash_mass / sample_mass) / 10",
+        "fixed_carbon_pct": "Math.round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10",
     },
-    "template": "GCV = {{gcv_cal_g}} cal/g ({{gcv_kj_kg}} kJ/kg)",
+    "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%",
 }
 
 
 class ExperimentTemplateCreate(BaseModel):
-    model_config = ConfigDict(json_schema_extra={"example": _CALORIFIC_EXAMPLE})
+    model_config = ConfigDict(json_schema_extra={"example": _PROXIMATE_EXAMPLE})
 
-    name: str
+    title: str
     description: str | None = None
-    userForm: WorkerForm | None = None
+    userForm: dict | None = None
     workerForm: WorkerForm
     calculations: dict[str, str]
     template: str
 
 
 class ExperimentTemplateUpdate(BaseModel):
-    model_config = ConfigDict(json_schema_extra={"example": _CALORIFIC_EXAMPLE})
+    model_config = ConfigDict(json_schema_extra={"example": _PROXIMATE_EXAMPLE})
 
-    name: str
+    title: str
     description: str | None = None
-    userForm: WorkerForm | None = None
+    userForm: dict | None = None
     workerForm: WorkerForm
     calculations: dict[str, str]
     template: str
@@ -192,9 +203,9 @@ class ExperimentCreate(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "exp_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "exp_id": "7b1e39a5-86e2-433f-a194-397061316cb6",
                 "sample_id": "a1b2c3d4-0002-0002-0002-000000000002",
-                "template_id": "d59a46b2-28a5-4243-b894-c6ecf6309d02",
+                "template_id": "dd949e81-22ea-46b0-aa04-c0c80d22a9a2",
             }
         }
     )
@@ -206,67 +217,78 @@ class ExperimentCreate(BaseModel):
 
 _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
     "example": {
-        "state": {
-            "id": "d59a46b2-28a5-4243-b894-c6ecf6309d02",
-            "name": "Calorific Value (GCV)",
-            "description": "Determine gross calorific value by bomb calorimetry",
-            "template": "GCV = {{gcv_cal_g}} cal/g ({{gcv_kj_kg}} kJ/kg)",
-            "workerForm": {
-                "title": "Calorific Value Form",
-                "description": "Record bomb calorimeter readings.",
-                "questions": [
-                    {
-                        "id": "sample_mass",
-                        "type": "number",
-                        "label": "Sample mass (g)",
-                        "required": True,
-                        "min": 0,
-                        "max": 10,
-                        "step": 0.001,
-                        "default": 1.0,
-                        "value": 1.023,
-                    },
-                    {
-                        "id": "water_equivalent",
-                        "type": "number",
-                        "label": "Water equivalent of calorimeter (cal/°C)",
-                        "required": True,
-                        "min": 1000,
-                        "max": 5000,
-                        "step": 0.1,
-                        "default": 2426.0,
-                        "value": 2426.0,
-                    },
-                    {
-                        "id": "temp_rise",
-                        "type": "number",
-                        "label": "Temperature rise (°C)",
-                        "required": True,
-                        "min": 0,
-                        "max": 10,
-                        "step": 0.001,
-                        "default": 2.5,
-                        "value": 3.142,
-                    },
-                    {
-                        "id": "fuse_correction",
-                        "type": "number",
-                        "label": "Fuse wire correction (cal)",
-                        "required": False,
-                        "min": 0,
-                        "max": 100,
-                        "step": 0.1,
-                        "default": 2.0,
-                        "value": 1.8,
-                    },
-                ],
-            },
-            "calculations": {
-                "fuse_corr": "fuse_correction || 0",
-                "gcv_cal_g": "Math.round((water_equivalent * temp_rise - fuse_corr) / sample_mass)",
-                "gcv_kj_kg": "Math.round(gcv_cal_g * 4.1868)",
-            },
-        }
+        "workerForm": {
+            "title": "Proximate Analysis Form",
+            "description": "Record masses at each stage of the proximate analysis procedure.",
+            "questions": [
+                {
+                    "id": "crucible_mass",
+                    "type": "number",
+                    "label": "Crucible mass (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 200,
+                    "step": 0.001,
+                    "default": 20.0,
+                    "value": 21.354,
+                },
+                {
+                    "id": "sample_mass",
+                    "type": "number",
+                    "label": "Sample mass (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 10,
+                    "step": 0.001,
+                    "default": 1.0,
+                    "value": 1.001,
+                },
+                {
+                    "id": "mass_after_moisture",
+                    "type": "number",
+                    "label": "Mass after moisture drying at 105°C (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 200,
+                    "step": 0.001,
+                    "default": 20.8,
+                    "value": 22.247,
+                },
+                {
+                    "id": "mass_after_volatile",
+                    "type": "number",
+                    "label": "Mass after volatile matter removal at 900°C (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 200,
+                    "step": 0.001,
+                    "default": 20.5,
+                    "value": 21.891,
+                },
+                {
+                    "id": "mass_after_ash",
+                    "type": "number",
+                    "label": "Mass after ashing at 750°C (g)",
+                    "required": True,
+                    "min": 0,
+                    "max": 200,
+                    "step": 0.001,
+                    "default": 20.1,
+                    "value": 21.501,
+                },
+            ],
+        },
+        "calculations": {
+            "moisture_loss": "crucible_mass + sample_mass - mass_after_moisture",
+            "volatile_loss": "mass_after_moisture - mass_after_volatile",
+            "ash_mass": "mass_after_ash - crucible_mass",
+            "moisture_pct": "Math.round(1000 * moisture_loss / sample_mass) / 10",
+            "volatile_pct": "Math.round(1000 * volatile_loss / sample_mass) / 10",
+            "ash_pct": "Math.round(1000 * ash_mass / sample_mass) / 10",
+            "fixed_carbon_pct": "Math.round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10",
+        },
+        "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%",
+        "userForm": None,
     }
 }
 
@@ -274,23 +296,40 @@ _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
 class ExperimentUpdate(BaseModel):
     model_config = ConfigDict(json_schema_extra=_EXPERIMENT_UPDATE_EXAMPLE)
 
-    state: dict
+    workerForm: WorkerForm
+    calculations: dict[str, str]
+    template: str
+    userForm: dict | None = None
 
 
 class ExperimentSummary(BaseModel):
-    exp_id: UUID
+    id: UUID
     sample_id: UUID
     template_id: UUID
+    report_status: str | None = None
     created_at: datetime
 
 
 class ExperimentDetail(BaseModel):
-    exp_id: UUID
+    model_config = ConfigDict(extra="allow")
+
+    id: UUID
     sample_id: UUID
     template_id: UUID
-    state: dict
+    report_status: str | None = None
+    report_r2_key: str | None = None
+    report_generated_at: datetime | None = None
     created_at: datetime
 
 
 class ExperimentsListResponse(BaseModel):
     experiments: list[ExperimentSummary]
+
+
+class ReportStatusResponse(BaseModel):
+    status: str
+
+
+class ReportDownloadResponse(BaseModel):
+    url: str
+    expires_in: int
