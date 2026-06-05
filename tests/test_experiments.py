@@ -14,16 +14,12 @@ _VALID_BODY = {
     "template_id": str(PROXIMATE_TEMPLATE_ID),
 }
 
-# State blob sent on PUT — full snapshot with worker values embedded
+# PUT body — only the 4 updatable fields
 _STATE_WITH_VALUES = {
-    "id": str(PROXIMATE_TEMPLATE_ID),
-    "name": "Proximate Analysis",
-    "description": "Determine moisture, ash, volatile matter, and fixed carbon",
     "workerForm": {"title": "Proximate Form", "questions": []},
     "calculations": {"result": "value * 100"},
     "template": "Result: {{result}}%",
-    "crucible_mass": 1.23,
-    "sample_mass": 4.56,
+    "userForm": None,
 }
 
 
@@ -119,20 +115,16 @@ async def test_get_experiment_unknown_returns_404(client: AsyncClient):
 async def test_update_experiment_stores_state(client: AsyncClient):
     await client.post("/api/experiments", json=_VALID_BODY)
     body = (
-        await client.put(
-            f"/api/experiments/{_EXP_ID}", json={"state": _STATE_WITH_VALUES}
-        )
+        await client.put(f"/api/experiments/{_EXP_ID}", json=_STATE_WITH_VALUES)
     ).json()
-    assert body["title"] == "Proximate Analysis"
     assert body["workerForm"]["title"] == "Proximate Form"
+    assert body["calculations"]["result"] == "value * 100"
 
 
 async def test_update_experiment_returns_updated_state(client: AsyncClient):
     await client.post("/api/experiments", json=_VALID_BODY)
     body = (
-        await client.put(
-            f"/api/experiments/{_EXP_ID}", json={"state": _STATE_WITH_VALUES}
-        )
+        await client.put(f"/api/experiments/{_EXP_ID}", json=_STATE_WITH_VALUES)
     ).json()
     assert body["template_id"] == str(PROXIMATE_TEMPLATE_ID)
     assert body["sample_id"] == str(COAL_ID)
@@ -140,7 +132,7 @@ async def test_update_experiment_returns_updated_state(client: AsyncClient):
 
 async def test_update_experiment_unknown_returns_404(client: AsyncClient):
     assert (
-        await client.put(f"/api/experiments/{uuid.uuid4()}", json={"state": {}})
+        await client.put(f"/api/experiments/{uuid.uuid4()}", json=_STATE_WITH_VALUES)
     ).status_code == 404
 
 

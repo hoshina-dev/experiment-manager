@@ -1,55 +1,21 @@
 # Experiment Manager
 
-A FastAPI service that stores and serves **lab analysis templates** for experiment management. Clients request which analyses they want for a sample; the service returns the composed JSON form containing worker forms, calculation expressions, and output templates.
-
-## Overview
-
-Each **sample type** (e.g. tomato, coal, environment water) has a set of **analysis templates**. A template contains:
-- `workerForm` — the fields a lab worker fills in
-- `calculations` — named expressions (JS syntax, evaluated by the frontend)
-- `template` — output string with `{{variable}}` placeholders
-
-The service is read-only — it serves templates, not experiment results.
+A FastAPI service for tracking lab experiment tickets. It stores analysis templates per sample type, manages experiment state, and generates PDF reports stored in S3-compatible object storage.
 
 ## Tech stack
 
 | Layer | Library |
 |---|---|
-| Web framework | [FastAPI](https://fastapi.tiangolo.com/) |
-| Validation | [Pydantic v2](https://docs.pydantic.dev/) |
-| Config | [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) |
-| Server | [Uvicorn](https://www.uvicorn.org/) |
-| Observability | [OpenTelemetry](https://opentelemetry.io/) |
+| Web framework | FastAPI |
+| Validation | Pydantic v2 |
+| Config | pydantic-settings |
+| ORM | SQLAlchemy (async) |
+| Driver | psycopg (psycopg3) |
+| Server | Uvicorn |
+| PDF generation | ReportLab |
+| Object storage | boto3 (S3-compatible / Cloudflare R2) |
+| Observability | OpenTelemetry |
 | Python | ≥ 3.12 |
-
-## Project structure
-
-```
-main.py                        # App factory (CORS, OTEL, routers, lifespan)
-data/                          # Mock catalogue data (JSON) — mirrors future SQL schema
-  samples.json
-  {sample_id}/
-    {analysis_id}.json
-app/
-  config.py                    # Settings from env / .env
-  database.py                  # SQLite connection factory + schema bootstrap
-  models.py                    # Pydantic models (request + response)
-  observability/
-    telemetry.py               # OTEL TracerProvider setup
-  routers/
-    samples.py                 # /api/samples (catalogue, read-only)
-    experiments.py             # /api/experiments (CRUD)
-  services/
-    sample_service.py          # Catalogue business logic + OTEL spans
-    experiment_service.py      # Experiment business logic + OTEL spans
-  repositories/
-    sample_repository.py       # Reads JSON files from data/
-    experiment_repository.py   # SQLite CRUD for experiments
-tests/
-  conftest.py                  # Shared client fixture + test env overrides
-  test_samples.py
-  test_experiments.py
-```
 
 ## Getting started
 
@@ -65,16 +31,36 @@ uv sync
 cp .env.example .env
 ```
 
-| Variable | Default | Description |
-|---|---|---|
-| `APP_CORS_ORIGIN` | `http://localhost:3000` | Allowed CORS origin |
-| `APP_OTEL_ENDPOINT` | _(none)_ | OTLP/HTTP trace endpoint; omit to print spans to stdout |
-| `APP_DB_PATH` | `experiments.db` | Path to the SQLite file for experiment storage |
+Fill in `DATA_SOURCE_NAME` (Postgres DSN) and the `S3_*` variables (required — the server will not start without a reachable S3/R2 bucket).
 
-### 3. Run the server
+| Variable | Required | Description |
+|---|---|---|
+| `DATA_SOURCE_NAME` | Yes | `host=... user=... password=... dbname=... port=... sslmode=...` |
+| `TEST_DATA_SOURCE_NAME` | Tests only | Separate blank DB for the test suite |
+| `CORS_ORIGINS` | No | Comma-separated origins (default `http://localhost:3000`) |
+| `OTEL_ENDPOINT` | No | OTLP/HTTP trace endpoint; omit to disable |
+| `S3_ENDPOINT` | Yes | e.g. `http://localhost:9000` (MinIO) or Cloudflare R2 URL |
+| `S3_BUCKET` | Yes | Bucket for generated PDFs |
+| `S3_ACCESS_KEY` | Yes | |
+| `S3_SECRET_KEY` | Yes | |
+| `S3_REGION` | No | Default `auto` |
+| `REPORT_WORKER_MAX_THREADS` | No | CPU processes for PDF generation (default `2`) |
+| `REPORT_WORKER_QUEUE_MAX_SIZE` | No | Max queued jobs before 503 (default `50`) |
+
+### 3. Apply schema and seed data
 
 ```bash
-make serve
+psql $DATABASE_URL -f migrations/001_initial_schema.up.sql
+psql $DATABASE_URL -f sql_mock/900_seed_samples.up.sql
+psql $DATABASE_URL -f sql_mock/901_seed_experiment_templates.up.sql
+psql $DATABASE_URL -f sql_mock/902_seed_heat_capacity_template.up.sql
+psql $DATABASE_URL -f sql_mock/903_seed_charcoal_template.up.sql
+```
+
+### 4. Run the server
+
+```bash
+uv run uvicorn main:app --reload --port 3000
 ```
 
 API docs:
@@ -82,36 +68,77 @@ API docs:
 - Swagger UI: [http://localhost:3000/docs](http://localhost:3000/docs)
 - Scalar UI: [http://localhost:3000/scalar](http://localhost:3000/scalar)
 
-## API
-
-**Catalogue (read-only)**
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/samples` | List all sample types |
-| `GET` | `/api/samples/{sample_id}/analyses` | List available analyses for a sample (checklist) |
-
-**Experiments (CRUD)**
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/experiments` | Create an experiment — snapshots selected templates, returns `exp_id` + full form |
-| `GET` | `/api/experiments` | List all experiments (summary, no form) |
-| `GET` | `/api/experiments/{exp_id}` | Get full experiment detail including form snapshot |
-| `PUT` | `/api/experiments/{exp_id}` | Update requested analyses and regenerate form snapshot |
-| `DELETE` | `/api/experiments/{exp_id}` | Delete an experiment |
-
-POST / PUT body:
-```json
-{ "sample_id": "coal", "requested_analyses": ["calorific", "proximate"] }
-```
-
-Unknown analysis IDs are silently ignored. `sample_id` cannot change on PUT.
-
-## Development
+### 5. Run tests
 
 ```bash
-make test       # run pytest
-make lint       # black + isort check
-make format     # black + isort fix
+uv run pytest -v
+```
+
+Requires `TEST_DATA_SOURCE_NAME` in `.env`. The test suite creates its own schema and rolls back after each test.
+
+## API
+
+### Sample types
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/samples` | Create a sample type |
+| `GET` | `/api/samples` | List all sample types |
+| `GET` | `/api/samples/{sample_id}` | Get one |
+| `PUT` | `/api/samples/{sample_id}` | Update name/description |
+| `DELETE` | `/api/samples/{sample_id}` | Soft delete |
+
+### Analysis templates (nested under sample)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/samples/{sample_id}/experiments` | Create a template |
+| `GET` | `/api/samples/{sample_id}/experiments` | List templates for a sample |
+| `GET` | `/api/samples/{sample_id}/experiments/{template_id}` | Get one template |
+| `PUT` | `/api/samples/{sample_id}/experiments/{template_id}` | Update template |
+| `DELETE` | `/api/samples/{sample_id}/experiments/{template_id}` | Soft delete |
+
+### Experiments
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/experiments` | Create an experiment — initialises state from the template |
+| `GET` | `/api/experiments` | List experiments (summary) |
+| `GET` | `/api/experiments/{exp_id}` | Full experiment detail |
+| `PUT` | `/api/experiments/{exp_id}` | Update experiment state (worker fills in measured values) |
+| `DELETE` | `/api/experiments/{exp_id}` | Soft delete |
+
+### PDF reports
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/experiments/{exp_id}/report/generate` | Enqueue PDF generation → 202 `{ "status": "pending" }` |
+| `GET` | `/api/experiments/{exp_id}/report/download` | Get presigned download URL → `{ "url": "...", "expires_in": 900 }` |
+
+## Data model
+
+An experiment's state is a flat JSON blob stored in Postgres. At creation it mirrors the template:
+
+```json
+{
+  "id": "exp-uuid",
+  "sample_id": "uuid",
+  "template_id": "uuid",
+  "title": "Heat Capacity Analysis",
+  "description": "...",
+  "workerForm": { "title": "...", "questions": [ ... ] },
+  "calculations": { "delta_T": "temperature_final - temperature_initial" },
+  "template": "ΔT = {{delta_T}} °C"
+}
+```
+
+On `PUT` the worker sends the same blob back with `"value"` filled into each question. `id`, `sample_id`, and `template_id` are immutable — the service overwrites any values the client sends for those fields.
+
+`GET /api/experiments/{exp_id}` returns this blob merged with report tracking fields: `report_status`, `report_r2_key`, `report_generated_at`, `created_at`.
+
+## Code style
+
+```bash
+uv run black .
+uv run isort .
 ```

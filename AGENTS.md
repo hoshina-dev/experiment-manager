@@ -23,29 +23,41 @@ Key concepts:
 ## Architecture
 
 ```
-main.py                                  # FastAPI app factory + OTEL init + lifespan
+main.py                                  # FastAPI app factory + OTEL init + lifespan (queue, executor, startup recovery)
 migrations/
   001_initial_schema.up.sql              # Run manually — creates all tables
   001_initial_schema.down.sql            # Tear down
 sql_mock/
   900_seed_samples.up.sql                # Seed sample types (dev only)
   901_seed_experiment_templates.up.sql   # Seed analysis templates (dev only)
+  902_seed_heat_capacity_template.up.sql # Heat Capacity Analysis template under Coal
+  903_seed_charcoal_template.up.sql      # PDF component layout for Heat Capacity Analysis
 app/
-  config.py                              # Pydantic Settings — reads from .env
+  config.py                              # Pydantic Settings — reads from .env (Settings, R2Settings, ReportWorkerSettings)
   database.py                            # Async SQLAlchemy engine + get_db dependency
-  db_models.py                           # ORM models (SampleType, ExperimentTemplate, Experiment)
+  db_models.py                           # ORM models (SampleType, ExperimentTemplate, Experiment, PdfTemplate)
   models.py                              # Pydantic request/response models
+  report_worker.py                       # ReportJob dataclass + async report_worker coroutine (ProcessPoolExecutor)
   observability/
     telemetry.py                         # OpenTelemetry TracerProvider setup
+  pdf/
+    __init__.py                          # Re-exports generate_pdf
+    components.py                        # PDF component dataclasses + component_from_dict
+    context.py                           # flatten_context — builds template variable map
+    engine.py                            # TemplateEngine: parse, validate, build_context
+    parser.py                            # interpolate_template, extract_fields
+    renderer.py                          # generate_pdf entry point + render_pdf
+    r2_client.py                         # upload_pdf, presign_download, check_connection (boto3)
   routers/
     samples.py                           # /api/samples — SampleType + ExperimentTemplate CRUD
     experiments.py                       # /api/experiments — Experiment CRUD
+    reports.py                           # /api/experiments/{id}/report/generate|download
   services/
     sample_service.py                    # Business logic for samples and templates
-    experiment_service.py                # Business logic for experiments
+    experiment_service.py                # Business logic for experiments + report enqueue
   repositories/
     sample_repository.py                 # Async DB access for sample_types and experiment_templates
-    experiment_repository.py             # Async DB access for experiments
+    experiment_repository.py             # Async DB access for experiments + report status updates
 tests/
   conftest.py                            # Async fixtures — test engine, seed catalogue, per-test rollback client
   test_samples.py
@@ -85,29 +97,35 @@ Layer rules (enforce strictly):
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/experiments` | Create experiment — snapshots full template into `state` |
-| `GET` | `/api/experiments` | List experiments (summary — no state detail) |
-| `GET` | `/api/experiments/{exp_id}` | Full detail including the complete `state` blob |
-| `PUT` | `/api/experiments/{exp_id}` | Replace `state` with worker-filled blob — send the whole JSON back with `value` added to each question |
+| `POST` | `/api/experiments` | Create experiment — initialises state from the template |
+| `GET` | `/api/experiments` | List experiments (summary only) |
+| `GET` | `/api/experiments/{exp_id}` | Full experiment detail |
+| `PUT` | `/api/experiments/{exp_id}` | Replace experiment state — send the whole JSON back with `value` added to each question |
 | `DELETE` | `/api/experiments/{exp_id}` | Soft delete |
+
+**Reports**
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/experiments/{exp_id}/report/generate` | Enqueue PDF generation → 202 `{ status: "pending" }` |
+| `GET` | `/api/experiments/{exp_id}/report/download` | Get presigned download URL → `{ url, expires_in: 900 }` |
 
 POST body:
 ```json
 { "exp_id": "uuid-from-ticketing-service", "sample_id": "uuid", "template_id": "uuid" }
 ```
 
-PUT body — send the full state blob back with `"value"` added to each question:
+PUT body — send the full state flat, with `"value"` added to each question:
 ```json
 {
-  "state": {
-    "id": "uuid", "name": "Calorific Value (GCV)", "template": "GCV = {{gcv_cal_g}} ...",
-    "workerForm": {
-      "questions": [
-        { "id": "sample_mass", "type": "number", "default": 1.0, "value": 1.023, ... }
-      ]
-    },
-    "calculations": { ... }
-  }
+  "title": "Calorific Value (GCV)",
+  "template": "GCV = {{gcv_cal_g}} ...",
+  "workerForm": {
+    "questions": [
+      { "id": "sample_mass", "type": "number", "default": 1.0, "value": 1.023 }
+    ]
+  },
+  "calculations": { ... }
 }
 ```
 
@@ -118,22 +136,22 @@ Returns 409 if `exp_id` already exists.
 ## Data model notes
 
 ### Experiment state (JSONB)
-`experiments.state` stores:
+`experiments.state` is a flat dict. At creation it looks like:
 ```json
 {
+  "id": "exp-uuid",
   "sample_id": "uuid",
   "template_id": "uuid",
-  "snapshot": {
-    "id": "uuid",
-    "name": "Proximate Analysis",
-    "description": "...",
-    "workerForm": { ... },
-    "calculations": { ... },
-    "template": "Output string with {{placeholders}}"
-  }
+  "title": "Proximate Analysis",
+  "description": "...",
+  "workerForm": { ... },
+  "calculations": { ... },
+  "template": "Output string with {{placeholders}}"
 }
 ```
-`state.snapshot` is the full template snapshot at creation time. On PUT the worker sends back the same blob with `"value"` added to each question — the whole `snapshot` key is replaced, `sample_id` and `template_id` are preserved.
+On PUT the worker sends back the same blob with `"value"` filled into each question. The service merges the PUT body with the authoritative `id`, `sample_id`, and `template_id` from the existing state — those three fields cannot be changed after creation.
+
+`GET /api/experiments/{exp_id}` returns `**state` merged with the DB-level report columns (`report_status`, `report_r2_key`, `report_generated_at`, `created_at`). An experiment response is therefore identical in shape to an `ExperimentTemplateDetail` plus `id`, `sample_id`, `template_id`, and the report fields.
 
 ### ExperimentTemplate JSONB schema
 `experiment_templates.template` stores:
@@ -248,6 +266,13 @@ Environment variables (see `.env.example`):
 | `TEST_DATA_SOURCE_NAME` | For tests | Separate test DB — blank DB is fine, schema created by test suite |
 | `CORS_ORIGINS` | No | Comma-separated allowed origins (default `http://localhost:3000`) |
 | `OTEL_ENDPOINT` | No | OTLP/HTTP endpoint e.g. `http://localhost:4318/v1/traces`; omit to disable |
+| `S3_ENDPOINT` | Yes | R2/S3-compatible endpoint e.g. `http://localhost:9000` |
+| `S3_BUCKET` | Yes | Bucket name for storing generated PDFs |
+| `S3_ACCESS_KEY` | Yes | S3 access key |
+| `S3_SECRET_KEY` | Yes | S3 secret key |
+| `S3_REGION` | No | Region (default `auto` for Cloudflare R2) |
+| `REPORT_WORKER_MAX_THREADS` | No | ProcessPoolExecutor workers (default `2`) |
+| `REPORT_WORKER_QUEUE_MAX_SIZE` | No | Max queued report jobs before 503 (default `50`) |
 
 ---
 

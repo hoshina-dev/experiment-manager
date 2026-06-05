@@ -18,12 +18,7 @@ tracer = trace.get_tracer(__name__)
 
 
 def _to_experiment_template_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
-    return ExperimentTemplateDetail(
-        id=t.id,
-        name=t.name,
-        description=t.description,
-        **t.template,
-    )
+    return ExperimentTemplateDetail(**t.template)
 
 
 async def get_samples(session: AsyncSession) -> SamplesListResponse:
@@ -134,19 +129,17 @@ async def create_experiment_template(
         sample = await repo.get_sample_type(session, sample_id)
         if sample is None:
             return None
-        template_data = body.model_dump(
-            exclude={"name", "description"}, exclude_none=True
-        )
+        template_data = body.model_dump(exclude_none=True)
         try:
             row = await repo.create_template(
-                session, sample_id, body.name, body.description, template_data
+                session, sample_id, body.title, body.description, template_data
             )
             await session.commit()
         except IntegrityError:
             await session.rollback()
             raise HTTPException(
                 status_code=409,
-                detail=f'Experiment template "{body.name}" already exists for this sample',
+                detail=f'Experiment template "{body.title}" already exists for this sample',
             )
         return _to_experiment_template_detail(row)
 
@@ -162,15 +155,13 @@ async def update_experiment_template(
     ) as span:
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("template.id", str(template_id))
-        template_data = body.model_dump(
-            exclude={"name", "description"}, exclude_none=True
-        )
+        template_data = body.model_dump(exclude_none=True)
         try:
             row = await repo.update_template(
                 session,
                 sample_id,
                 template_id,
-                body.name,
+                body.title,
                 body.description,
                 template_data,
             )
@@ -181,7 +172,7 @@ async def update_experiment_template(
             await session.rollback()
             raise HTTPException(
                 status_code=409,
-                detail=f'Experiment template "{body.name}" already exists for this sample',
+                detail=f'Experiment template "{body.title}" already exists for this sample',
             )
         return _to_experiment_template_detail(row)
 
