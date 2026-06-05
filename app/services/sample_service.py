@@ -18,7 +18,7 @@ tracer = trace.get_tracer(__name__)
 
 
 def _to_experiment_template_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
-    return ExperimentTemplateDetail(**t.template)
+    return ExperimentTemplateDetail(id=t.id, **t.template)
 
 
 async def get_samples(session: AsyncSession) -> SamplesListResponse:

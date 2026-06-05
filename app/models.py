@@ -58,6 +58,8 @@ class ExperimentTemplatesResponse(BaseModel):
 class ExperimentTemplateDetail(BaseModel):
     model_config = ConfigDict(extra="allow")
 
+    id: UUID
+
 
 # ---------------------------------------------------------------------------
 # Sample (create / update)
