@@ -10,7 +10,7 @@ which is the SQLAlchemy equivalent of GORM's BeforeUpdate hook.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -63,10 +63,12 @@ class SampleType(TimestampMixin, Base):
 
 class ExperimentTemplate(TimestampMixin, Base):
     __tablename__ = "experiment_templates"
-    __table_args__ = (UniqueConstraint("sample_type_id", "name"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    lineage_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=False, default=uuid.uuid4
     )
     sample_type_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -75,6 +77,8 @@ class ExperimentTemplate(TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     template: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
     sample_type: Mapped["SampleType"] = relationship(back_populates="templates")

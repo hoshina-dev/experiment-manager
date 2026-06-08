@@ -46,13 +46,21 @@ class WorkerForm(BaseModel):
 
 class ExperimentTemplateSummary(BaseModel):
     id: UUID
+    lineage_id: UUID
     name: str
     description: str | None = None
+    version: int
+    is_current: bool
 
 
 class ExperimentTemplatesResponse(BaseModel):
     sample_id: UUID
     experiments: list[ExperimentTemplateSummary]
+
+
+class ExperimentTemplateHistoryResponse(BaseModel):
+    lineage_id: UUID
+    versions: list[ExperimentTemplateSummary]
 
 
 class ExperimentTemplateDetail(BaseModel):
