@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.repositories.sample_repository as repo
 from app.db_models import ExperimentTemplate
 from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
+                        ExperimentTemplateHistoryResponse,
                         ExperimentTemplatesResponse, ExperimentTemplateSummary,
                         ExperimentTemplateUpdate, SampleCreate,
                         SamplesListResponse, SampleSummary, SampleUpdate)
@@ -17,8 +18,25 @@ from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
 tracer = trace.get_tracer(__name__)
 
 
-def _to_experiment_template_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
-    return ExperimentTemplateDetail(id=t.id, **t.template)
+def _to_summary(t: ExperimentTemplate) -> ExperimentTemplateSummary:
+    return ExperimentTemplateSummary(
+        id=t.id,
+        lineage_id=t.lineage_id,
+        name=t.name,
+        description=t.description,
+        version=t.version,
+        is_current=t.is_current,
+    )
+
+
+def _to_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
+    return ExperimentTemplateDetail(
+        id=t.id,
+        lineage_id=t.lineage_id,
+        version=t.version,
+        is_current=t.is_current,
+        **t.template,
+    )
 
 
 async def get_samples(session: AsyncSession) -> SamplesListResponse:
@@ -98,12 +116,7 @@ async def get_experiment_templates(
         templates = await repo.list_templates(session, sample_id)
         return ExperimentTemplatesResponse(
             sample_id=sample.id,
-            experiments=[
-                ExperimentTemplateSummary(
-                    id=t.id, name=t.name, description=t.description
-                )
-                for t in templates
-            ],
+            experiments=[_to_summary(t) for t in templates],
         )
 
 
@@ -116,7 +129,24 @@ async def get_experiment_template(
         row = await repo.get_template(session, sample_id, template_id)
         if row is None:
             return None
-        return _to_experiment_template_detail(row)
+        return _to_detail(row)
+
+
+async def get_experiment_template_history(
+    session: AsyncSession, sample_id: uuid.UUID, lineage_id: uuid.UUID
+) -> ExperimentTemplateHistoryResponse | None:
+    with tracer.start_as_current_span(
+        "sample_service.get_experiment_template_history"
+    ) as span:
+        span.set_attribute("sample.id", str(sample_id))
+        span.set_attribute("lineage.id", str(lineage_id))
+        rows = await repo.list_template_history(session, sample_id, lineage_id)
+        if not rows:
+            return None
+        return ExperimentTemplateHistoryResponse(
+            lineage_id=lineage_id,
+            versions=[_to_summary(t) for t in rows],
+        )
 
 
 async def create_experiment_template(
@@ -141,26 +171,26 @@ async def create_experiment_template(
                 status_code=409,
                 detail=f'Experiment template "{body.title}" already exists for this sample',
             )
-        return _to_experiment_template_detail(row)
+        return _to_detail(row)
 
 
 async def update_experiment_template(
     session: AsyncSession,
     sample_id: uuid.UUID,
-    template_id: uuid.UUID,
+    lineage_id: uuid.UUID,
     body: ExperimentTemplateUpdate,
 ) -> ExperimentTemplateDetail | None:
     with tracer.start_as_current_span(
         "sample_service.update_experiment_template"
     ) as span:
         span.set_attribute("sample.id", str(sample_id))
-        span.set_attribute("template.id", str(template_id))
+        span.set_attribute("lineage.id", str(lineage_id))
         template_data = body.model_dump(exclude_none=True)
         try:
-            row = await repo.update_template(
+            row = await repo.create_new_template_version(
                 session,
                 sample_id,
-                template_id,
+                lineage_id,
                 body.title,
                 body.description,
                 template_data,
@@ -174,7 +204,7 @@ async def update_experiment_template(
                 status_code=409,
                 detail=f'Experiment template "{body.title}" already exists for this sample',
             )
-        return _to_experiment_template_detail(row)
+        return _to_detail(row)
 
 
 async def delete_experiment_template(

@@ -23,13 +23,13 @@ tracer = trace.get_tracer(__name__)
 def _build_state(
     exp_id: uuid.UUID,
     sample_id: uuid.UUID,
-    template_id: uuid.UUID,
     t: ExperimentTemplate,
 ) -> dict:
     return {
         "id": str(exp_id),
         "sample_id": str(sample_id),
-        "template_id": str(template_id),
+        "template_id": str(t.id),  # frozen specific version id
+        "lineage_id": str(t.lineage_id),
         **t.template,
     }
 
@@ -67,18 +67,16 @@ async def create_experiment(
                 status_code=404, detail=f'Sample "{body.sample_id}" not found'
             )
 
-        template_row = await sample_repo.get_template(
-            session, body.sample_id, body.template_id
+        template_row = await sample_repo.get_current_template_by_lineage(
+            session, body.sample_id, body.lineage_id
         )
         if template_row is None:
             raise HTTPException(
                 status_code=404,
-                detail=f'Template "{body.template_id}" not found for sample "{body.sample_id}"',
+                detail=f'Template lineage "{body.lineage_id}" not found for sample "{body.sample_id}"',
             )
 
-        state = _build_state(
-            body.exp_id, body.sample_id, body.template_id, template_row
-        )
+        state = _build_state(body.exp_id, body.sample_id, template_row)
 
         try:
             row = await experiment_repo.create(session, body.exp_id, state)

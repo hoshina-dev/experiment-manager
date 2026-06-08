@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.services.sample_service as service
 from app.database import get_db
 from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
+                        ExperimentTemplateHistoryResponse,
                         ExperimentTemplatesResponse, ExperimentTemplateUpdate,
                         SampleCreate, SamplesListResponse, SampleSummary,
                         SampleUpdate)
@@ -87,16 +88,30 @@ async def get_experiment_template(
     return result
 
 
-@router.put("/{sample_id}/experiments/{template_id}")
+@router.put("/{sample_id}/experiments/{lineage_id}")
 async def update_experiment_template(
     sample_id: uuid.UUID,
-    template_id: uuid.UUID,
+    lineage_id: uuid.UUID,
     body: ExperimentTemplateUpdate,
     db: DbDep,
 ) -> ExperimentTemplateDetail:
-    result = await service.update_experiment_template(db, sample_id, template_id, body)
+    result = await service.update_experiment_template(db, sample_id, lineage_id, body)
     if result is None:
-        raise HTTPException(404, f'Experiment template "{template_id}" not found')
+        raise HTTPException(
+            404, f'Experiment template lineage "{lineage_id}" not found'
+        )
+    return result
+
+
+@router.get("/{sample_id}/experiments/{lineage_id}/history")
+async def get_experiment_template_history(
+    sample_id: uuid.UUID, lineage_id: uuid.UUID, db: DbDep
+) -> ExperimentTemplateHistoryResponse:
+    result = await service.get_experiment_template_history(db, sample_id, lineage_id)
+    if result is None:
+        raise HTTPException(
+            404, f'Experiment template lineage "{lineage_id}" not found'
+        )
     return result
 
 

@@ -213,14 +213,14 @@ class ExperimentCreate(BaseModel):
             "example": {
                 "exp_id": "7b1e39a5-86e2-433f-a194-397061316cb6",
                 "sample_id": "a1b2c3d4-0002-0002-0002-000000000002",
-                "template_id": "dd949e81-22ea-46b0-aa04-c0c80d22a9a2",
+                "lineage_id": "dd949e81-22ea-46b0-aa04-c0c80d22a9a2",
             }
         }
     )
 
     exp_id: UUID
     sample_id: UUID
-    template_id: UUID
+    lineage_id: UUID
 
 
 _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
