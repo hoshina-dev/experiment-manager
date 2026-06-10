@@ -219,6 +219,7 @@ async def create_new_template_version(
     old_pdf_components: list = []
     if current.pdf_template is not None:
         old_pdf_components = list(current.pdf_template.components)
+        current.pdf_template.is_current = False
 
     current.is_current = False
     await session.flush()
@@ -236,7 +237,7 @@ async def create_new_template_version(
     await session.flush()
 
     # Clone PDF layout to new version so editor inherits the previous layout
-    new_pdf = PdfTemplate(template_id=new_row.id, components=old_pdf_components)
+    new_pdf = PdfTemplate(template_id=new_row.id, components=old_pdf_components, is_current=True)
     session.add(new_pdf)
     await session.flush()
 

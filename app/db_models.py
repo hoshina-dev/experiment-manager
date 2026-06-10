@@ -98,6 +98,7 @@ class PdfTemplate(Base):
         primary_key=True,
     )
     components: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )
