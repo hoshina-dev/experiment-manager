@@ -96,25 +96,23 @@ async def list_experiments(session: AsyncSession) -> ExperimentsListResponse:
         return ExperimentsListResponse(experiments=[_row_to_summary(r) for r in rows])
 
 
-async def get_experiment(
-    session: AsyncSession, exp_id: uuid.UUID
-) -> ExperimentDetail | None:
+async def get_experiment(session: AsyncSession, exp_id: uuid.UUID) -> ExperimentDetail:
     with tracer.start_as_current_span("experiment_service.get") as span:
         span.set_attribute("exp_id", str(exp_id))
         row = await experiment_repo.get(session, exp_id)
-        return _row_to_detail(row) if row else None
+        if row is None:
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
+        return _row_to_detail(row)
 
 
 async def update_experiment(
     session: AsyncSession, exp_id: uuid.UUID, body: ExperimentUpdate
-) -> ExperimentDetail | None:
+) -> ExperimentDetail:
     with tracer.start_as_current_span("experiment_service.update") as span:
         span.set_attribute("exp_id", str(exp_id))
-
         existing = await experiment_repo.get(session, exp_id)
         if existing is None:
-            return None
-
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
         state = {
             **existing.state,
             "userForm": body.userForm,
@@ -122,19 +120,17 @@ async def update_experiment(
             "calculations": body.calculations,
             "template": body.template,
         }
-
         row = await experiment_repo.update(session, exp_id, state)
         await session.commit()
         return _row_to_detail(row)
 
 
-async def delete_experiment(session: AsyncSession, exp_id: uuid.UUID) -> bool:
+async def delete_experiment(session: AsyncSession, exp_id: uuid.UUID) -> None:
     with tracer.start_as_current_span("experiment_service.delete") as span:
         span.set_attribute("exp_id", str(exp_id))
-        deleted = await experiment_repo.delete(session, exp_id)
-        if deleted:
-            await session.commit()
-        return deleted
+        if not await experiment_repo.delete(session, exp_id):
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
+        await session.commit()
 
 
 async def request_report(

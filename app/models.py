@@ -67,6 +67,10 @@ class ExperimentTemplateDetail(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: UUID
+    lineage_id: UUID
+    name: str
+    version: int
+    is_current: bool
 
 
 # ---------------------------------------------------------------------------

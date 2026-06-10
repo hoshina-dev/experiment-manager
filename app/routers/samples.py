@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.services.sample_service as service
@@ -31,26 +31,19 @@ async def list_samples(db: DbDep) -> SamplesListResponse:
 
 @router.get("/{sample_id}")
 async def get_sample(sample_id: uuid.UUID, db: DbDep) -> SampleSummary:
-    result = await service.get_sample(db, sample_id)
-    if result is None:
-        raise HTTPException(404, f'Sample "{sample_id}" not found')
-    return result
+    return await service.get_sample(db, sample_id)
 
 
 @router.put("/{sample_id}")
 async def update_sample(
     sample_id: uuid.UUID, body: SampleUpdate, db: DbDep
 ) -> SampleSummary:
-    result = await service.update_sample(db, sample_id, body)
-    if result is None:
-        raise HTTPException(404, f'Sample "{sample_id}" not found')
-    return result
+    return await service.update_sample(db, sample_id, body)
 
 
 @router.delete("/{sample_id}", status_code=204)
 async def delete_sample(sample_id: uuid.UUID, db: DbDep) -> None:
-    if not await service.delete_sample(db, sample_id):
-        raise HTTPException(404, f'Sample "{sample_id}" not found')
+    await service.delete_sample(db, sample_id)
 
 
 # ---------------------------------------------------------------------------
@@ -62,30 +55,21 @@ async def delete_sample(sample_id: uuid.UUID, db: DbDep) -> None:
 async def create_experiment_template(
     sample_id: uuid.UUID, body: ExperimentTemplateCreate, db: DbDep
 ) -> ExperimentTemplateDetail:
-    result = await service.create_experiment_template(db, sample_id, body)
-    if result is None:
-        raise HTTPException(404, f'Sample "{sample_id}" not found')
-    return result
+    return await service.create_experiment_template(db, sample_id, body)
 
 
 @router.get("/{sample_id}/experiments")
 async def list_experiment_templates(
     sample_id: uuid.UUID, db: DbDep
 ) -> ExperimentTemplatesResponse:
-    result = await service.get_experiment_templates(db, sample_id)
-    if result is None:
-        raise HTTPException(404, f'Sample "{sample_id}" not found')
-    return result
+    return await service.get_experiment_templates(db, sample_id)
 
 
 @router.get("/{sample_id}/experiments/{template_id}")
 async def get_experiment_template(
     sample_id: uuid.UUID, template_id: uuid.UUID, db: DbDep
 ) -> ExperimentTemplateDetail:
-    result = await service.get_experiment_template(db, sample_id, template_id)
-    if result is None:
-        raise HTTPException(404, f'Experiment template "{template_id}" not found')
-    return result
+    return await service.get_experiment_template(db, sample_id, template_id)
 
 
 @router.put("/{sample_id}/experiments/{lineage_id}")
@@ -95,29 +79,18 @@ async def update_experiment_template(
     body: ExperimentTemplateUpdate,
     db: DbDep,
 ) -> ExperimentTemplateDetail:
-    result = await service.update_experiment_template(db, sample_id, lineage_id, body)
-    if result is None:
-        raise HTTPException(
-            404, f'Experiment template lineage "{lineage_id}" not found'
-        )
-    return result
+    return await service.update_experiment_template(db, sample_id, lineage_id, body)
 
 
 @router.get("/{sample_id}/experiments/{lineage_id}/history")
 async def get_experiment_template_history(
     sample_id: uuid.UUID, lineage_id: uuid.UUID, db: DbDep
 ) -> ExperimentTemplateHistoryResponse:
-    result = await service.get_experiment_template_history(db, sample_id, lineage_id)
-    if result is None:
-        raise HTTPException(
-            404, f'Experiment template lineage "{lineage_id}" not found'
-        )
-    return result
+    return await service.get_experiment_template_history(db, sample_id, lineage_id)
 
 
 @router.delete("/{sample_id}/experiments/{template_id}", status_code=204)
 async def delete_experiment_template(
     sample_id: uuid.UUID, template_id: uuid.UUID, db: DbDep
 ) -> None:
-    if not await service.delete_experiment_template(db, sample_id, template_id):
-        raise HTTPException(404, f'Experiment template "{template_id}" not found')
+    await service.delete_experiment_template(db, sample_id, template_id)

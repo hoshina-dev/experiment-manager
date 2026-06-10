@@ -56,10 +56,14 @@ async def seed_catalogue(test_engine):
             [
                 ExperimentTemplate(
                     id=PROXIMATE_TEMPLATE_ID,
+                    lineage_id=PROXIMATE_TEMPLATE_ID,
                     sample_type_id=COAL_ID,
                     name="Proximate Analysis",
                     description="Determine moisture, ash, volatile matter, and fixed carbon",
+                    version=1,
+                    is_current=True,
                     template={
+                        "title": "Proximate Analysis",
                         "workerForm": {"title": "Proximate Form", "questions": []},
                         "calculations": {"result": "value * 100"},
                         "template": "Result: {{result}}%",
@@ -67,10 +71,14 @@ async def seed_catalogue(test_engine):
                 ),
                 ExperimentTemplate(
                     id=CALORIFIC_TEMPLATE_ID,
+                    lineage_id=CALORIFIC_TEMPLATE_ID,
                     sample_type_id=COAL_ID,
                     name="Calorific Value",
                     description="Determine gross calorific value",
+                    version=1,
+                    is_current=True,
                     template={
+                        "title": "Calorific Value",
                         "workerForm": {"title": "Calorific Form", "questions": []},
                         "calculations": {"gcv": "value * 4.1868"},
                         "template": "GCV: {{gcv}} kJ/kg",

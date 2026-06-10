@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db_models import ExperimentTemplate, PdfTemplate, SampleType
 
@@ -79,9 +80,15 @@ async def get_template(
 async def get_current_template_by_lineage(
     session: AsyncSession, sample_type_id: uuid.UUID, lineage_id: uuid.UUID
 ) -> ExperimentTemplate | None:
-    """Fetch the current version of a template by lineage_id."""
+    """Fetch the current version of a template by lineage_id.
+
+    Eagerly loads pdf_template so callers can access it without triggering
+    async lazy loading (which raises MissingGreenlet in SQLAlchemy async).
+    """
     result = await session.execute(
-        select(ExperimentTemplate).where(
+        select(ExperimentTemplate)
+        .options(selectinload(ExperimentTemplate.pdf_template))
+        .where(
             ExperimentTemplate.lineage_id == lineage_id,
             ExperimentTemplate.sample_type_id == sample_type_id,
             ExperimentTemplate.is_current.is_(True),
@@ -167,6 +174,25 @@ async def create_template(
         template=template_data,
     )
     session.add(row)
+    await session.flush()
+    return row
+
+
+async def update_template_in_place(
+    session: AsyncSession,
+    sample_type_id: uuid.UUID,
+    template_id: uuid.UUID,
+    name: str,
+    description: str | None,
+    template_data: dict,
+) -> ExperimentTemplate | None:
+    """Mutate the current version row directly — only safe when no experiments reference it."""
+    row = await get_template(session, sample_type_id, template_id)
+    if row is None:
+        return None
+    row.name = name
+    row.description = description
+    row.template = template_data
     await session.flush()
     return row
 

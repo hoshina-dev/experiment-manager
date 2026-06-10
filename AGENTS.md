@@ -65,9 +65,32 @@ tests/
 ```
 
 Layer rules (enforce strictly):
-- **Routers** call services only. No direct repo or DB access, no business logic.
-- **Services** call repositories only. They own OTEL spans, commit/rollback, and 404-logic.
-- **Repositories** access the DB only. No HTTP concerns, no span creation, no commits — `flush()` only.
+- **Routers** call services only. No direct repo or DB access, no business logic, no `HTTPException`. One line per handler: `return await service.foo(...)`.
+- **Services** call repositories only. They own OTEL spans, commit/rollback, and **all error raising**. If a repo returns `None` or an operation fails, the service raises `HTTPException`. Never return `None` from a service function — raise instead.
+- **Repositories** access the DB only. Return `None` for not-found. Raise only SQLAlchemy exceptions (`IntegrityError` etc.). No `HTTPException`, no span creation, no commits — `flush()` only.
+
+Error-handling convention:
+```python
+# ✅ correct — HTTPException raised in service
+async def get_sample(session, sample_id) -> SampleSummary:
+    row = await repo.get_sample_type(session, sample_id)
+    if row is None:
+        raise HTTPException(404, f'Sample "{sample_id}" not found')
+    return SampleSummary(...)
+
+# ✅ correct — router is a dumb pass-through, no HTTPException import
+@router.get("/{sample_id}")
+async def get_sample(sample_id: uuid.UUID, db: DbDep) -> SampleSummary:
+    return await service.get_sample(db, sample_id)
+
+# ❌ wrong — router raising HTTPException
+@router.get("/{sample_id}")
+async def get_sample(sample_id: uuid.UUID, db: DbDep) -> SampleSummary:
+    result = await service.get_sample(db, sample_id)
+    if result is None:
+        raise HTTPException(404, "not found")   # ← move this to the service
+    return result
+```
 
 ---
 
@@ -83,15 +106,16 @@ Layer rules (enforce strictly):
 | `PUT` | `/api/samples/{sample_id}` | Update name/description |
 | `DELETE` | `/api/samples/{sample_id}` | Soft delete |
 
-**Analysis templates (nested under sample)**
+**Experiment templates (nested under sample)**
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/samples/{sample_id}/analyses` | Create a template |
-| `GET` | `/api/samples/{sample_id}/analyses` | List templates for a sample |
-| `GET` | `/api/samples/{sample_id}/analyses/{template_id}` | Get one template |
-| `PUT` | `/api/samples/{sample_id}/analyses/{template_id}` | Update template |
-| `DELETE` | `/api/samples/{sample_id}/analyses/{template_id}` | Soft delete |
+| `POST` | `/api/samples/{sample_id}/experiments` | Create a template (v1, starts its own lineage) |
+| `GET` | `/api/samples/{sample_id}/experiments` | List current versions only (`is_current=true`) |
+| `GET` | `/api/samples/{sample_id}/experiments/{template_id}` | Get a specific version by id |
+| `PUT` | `/api/samples/{sample_id}/experiments/{lineage_id}` | Edit template — mutates in place if no experiments exist yet; otherwise creates a new SCD2 version row |
+| `GET` | `/api/samples/{sample_id}/experiments/{lineage_id}/history` | All versions for a lineage, newest first |
+| `DELETE` | `/api/samples/{sample_id}/experiments/{template_id}` | Soft delete a specific version |
 
 **Experiments**
 
@@ -110,10 +134,11 @@ Layer rules (enforce strictly):
 | `POST` | `/api/experiments/{exp_id}/report/generate` | Enqueue PDF generation → 202 `{ status: "pending" }` |
 | `GET` | `/api/experiments/{exp_id}/report/download` | Get presigned download URL → `{ url, expires_in: 900 }` |
 
-POST body:
+POST `/api/experiments` body:
 ```json
-{ "exp_id": "uuid-from-ticketing-service", "sample_id": "uuid", "template_id": "uuid" }
+{ "exp_id": "uuid-from-ticketing-service", "sample_id": "uuid", "lineage_id": "uuid" }
 ```
+`lineage_id` identifies the template concept; the server resolves it to the current version id and freezes it into the experiment state.
 
 PUT body — send the full state flat, with `"value"` added to each question:
 ```json
@@ -185,19 +210,20 @@ Maintained by the SQLAlchemy ORM via `onupdate=_now` — no DB triggers needed.
 ## Conventions — required for every change
 
 ### New endpoint
-1. Add route to the appropriate router.
-2. Add a service function with an OTEL span wrapping every logical operation:
+1. Add route to the appropriate router — one line: `return await service.foo(...)`. No `HTTPException` in routers.
+2. Add a service function that owns all error logic (`raise HTTPException`) and wraps every logical operation in an OTEL span:
    ```python
    with tracer.start_as_current_span("service_name.operation") as span:
        span.set_attribute("relevant.id", str(value))
    ```
-3. Add a repository function if new DB access is needed. Repos `flush()` only — services `commit()`.
+3. Add a repository function if new DB access is needed. Repos return `None` for not-found, `flush()` only — services `commit()`.
 4. Add tests covering: happy path, 404, response shape.
 
 ### New ExperimentTemplate
-1. Insert via `POST /api/samples/{sample_id}/analyses` or add to `sql_mock/901_seed_experiment_templates.up.sql`.
+1. Insert via `POST /api/samples/{sample_id}/experiments` or add a new seed file under `sql_mock/`.
 2. The JSONB must include `workerForm`, `calculations`, and `template`. `userForm` is optional.
-3. Add tests asserting the template appears in `GET .../analyses`.
+3. Do **not** edit past seed files — add a new numbered seed file instead.
+4. Add tests asserting the template appears in `GET .../experiments`.
 
 ### New sample type
 1. Insert via `POST /api/samples` or add to `sql_mock/900_seed_samples.up.sql`.

@@ -9,7 +9,7 @@ from tests.conftest import (CALORIFIC_TEMPLATE_ID, COAL_ID,
 
 _NEW_SAMPLE = {"name": "Test Sample", "description": "For testing"}
 _NEW_EXPERIMENT_TEMPLATE = {
-    "name": "Test Analysis",
+    "title": "Test Analysis",
     "description": "A test analysis",
     "workerForm": {"title": "Test Form", "questions": []},
     "calculations": {"x": "a + b"},
@@ -141,6 +141,8 @@ async def test_create_experiment_template_returns_201(client: AsyncClient):
     )
     assert response.status_code == 201
     assert response.json()["name"] == "Test Analysis"
+    assert "lineage_id" in response.json()
+    assert response.json()["version"] == 1
 
 
 async def test_create_experiment_template_unknown_sample_returns_404(
@@ -178,14 +180,15 @@ async def test_get_experiment_template_unknown_returns_404(client: AsyncClient):
 
 
 async def test_update_experiment_template_returns_200(client: AsyncClient):
-    tid = (
+    created = (
         await client.post(
             f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
         )
-    ).json()["id"]
-    updated = {**_NEW_EXPERIMENT_TEMPLATE, "name": "Updated Analysis"}
+    ).json()
+    lineage_id = created["lineage_id"]
+    updated = {**_NEW_EXPERIMENT_TEMPLATE, "title": "Updated Analysis"}
     response = await client.put(
-        f"/api/samples/{COAL_ID}/experiments/{tid}", json=updated
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}", json=updated
     )
     assert response.status_code == 200
     assert response.json()["name"] == "Updated Analysis"

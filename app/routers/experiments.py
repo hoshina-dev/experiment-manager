@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.services.experiment_service as service
@@ -28,23 +28,16 @@ async def list_experiments(db: DbDep) -> ExperimentsListResponse:
 
 @router.get("/{exp_id}", response_model=ExperimentDetail)
 async def get_experiment(exp_id: uuid.UUID, db: DbDep) -> ExperimentDetail:
-    result = await service.get_experiment(db, exp_id)
-    if result is None:
-        raise HTTPException(404, f'Experiment "{exp_id}" not found')
-    return result
+    return await service.get_experiment(db, exp_id)
 
 
 @router.put("/{exp_id}", response_model=ExperimentDetail)
 async def update_experiment(
     exp_id: uuid.UUID, body: ExperimentUpdate, db: DbDep
 ) -> ExperimentDetail:
-    result = await service.update_experiment(db, exp_id, body)
-    if result is None:
-        raise HTTPException(404, f'Experiment "{exp_id}" not found')
-    return result
+    return await service.update_experiment(db, exp_id, body)
 
 
 @router.delete("/{exp_id}", status_code=204)
 async def delete_experiment(exp_id: uuid.UUID, db: DbDep) -> None:
-    if not await service.delete_experiment(db, exp_id):
-        raise HTTPException(404, f'Experiment "{exp_id}" not found')
+    await service.delete_experiment(db, exp_id)
