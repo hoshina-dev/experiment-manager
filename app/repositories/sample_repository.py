@@ -204,12 +204,13 @@ async def create_new_template_version(
     name: str,
     description: str | None,
     template_data: dict,
+    override_pdf_components: list | None = None,
 ) -> ExperimentTemplate | None:
     """SCD2 write: retire the current version and insert a new one.
 
-    Also clones the existing PdfTemplate components to the new version row so
-    old experiments keep their frozen PDF layout while the editor starts from
-    the previous layout.
+    Clones the existing PdfTemplate to the new row by default. Pass
+    override_pdf_components to replace the layout instead of cloning — used
+    when the editor saves a PDF-only change.
     """
     current = await get_current_template_by_lineage(session, sample_type_id, lineage_id)
     if current is None:
@@ -236,12 +237,57 @@ async def create_new_template_version(
     session.add(new_row)
     await session.flush()
 
-    # Clone PDF layout to new version so editor inherits the previous layout
-    new_pdf = PdfTemplate(template_id=new_row.id, components=old_pdf_components, is_current=True)
+    final_components = override_pdf_components if override_pdf_components is not None else old_pdf_components
+    new_pdf = PdfTemplate(template_id=new_row.id, components=final_components, is_current=True)
     session.add(new_pdf)
     await session.flush()
 
     return new_row
+
+
+# ---------------------------------------------------------------------------
+# PdfTemplate writes
+# ---------------------------------------------------------------------------
+
+
+async def get_pdf_template(
+    session: AsyncSession, template_id: uuid.UUID
+) -> PdfTemplate | None:
+    result = await session.execute(
+        select(PdfTemplate).where(PdfTemplate.template_id == template_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def create_pdf_template(
+    session: AsyncSession, template_id: uuid.UUID, components: list
+) -> PdfTemplate:
+    row = PdfTemplate(template_id=template_id, components=components, is_current=True)
+    session.add(row)
+    await session.flush()
+    return row
+
+
+async def update_pdf_template_in_place(
+    session: AsyncSession, template_id: uuid.UUID, components: list
+) -> PdfTemplate | None:
+    row = await get_pdf_template(session, template_id)
+    if row is None:
+        return None
+    row.components = components
+    await session.flush()
+    return row
+
+
+async def delete_pdf_template(
+    session: AsyncSession, template_id: uuid.UUID
+) -> bool:
+    row = await get_pdf_template(session, template_id)
+    if row is None:
+        return False
+    await session.delete(row)
+    await session.flush()
+    return True
 
 
 async def delete_template(

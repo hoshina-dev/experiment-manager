@@ -13,8 +13,9 @@ from app.db_models import ExperimentTemplate
 from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
                         ExperimentTemplateHistoryResponse,
                         ExperimentTemplatesResponse, ExperimentTemplateSummary,
-                        ExperimentTemplateUpdate, SampleCreate,
-                        SamplesListResponse, SampleSummary, SampleUpdate)
+                        ExperimentTemplateUpdate, PdfTemplateBody,
+                        PdfTemplateResponse, SampleCreate, SamplesListResponse,
+                        SampleSummary, SampleUpdate)
 
 tracer = trace.get_tracer(__name__)
 
@@ -221,6 +222,83 @@ async def update_experiment_template(
                 f'Experiment template "{body.title}" already exists for this sample',
             )
         return _to_detail(row)
+
+
+async def get_pdf_template(
+    session: AsyncSession, sample_id: uuid.UUID, template_id: uuid.UUID
+) -> PdfTemplateResponse:
+    with tracer.start_as_current_span("sample_service.get_pdf_template") as span:
+        span.set_attribute("sample.id", str(sample_id))
+        span.set_attribute("template.id", str(template_id))
+        if await repo.get_template(session, sample_id, template_id) is None:
+            raise HTTPException(404, f'Experiment template "{template_id}" not found')
+        pdf = await repo.get_pdf_template(session, template_id)
+        if pdf is None:
+            raise HTTPException(404, f'No PDF template for "{template_id}"')
+        return PdfTemplateResponse(
+            template_id=pdf.template_id,
+            is_current=pdf.is_current,
+            components=pdf.components,
+            updated_at=pdf.updated_at,
+        )
+
+
+async def upsert_pdf_template(
+    session: AsyncSession,
+    sample_id: uuid.UUID,
+    lineage_id: uuid.UUID,
+    body: PdfTemplateBody,
+) -> PdfTemplateResponse:
+    with tracer.start_as_current_span("sample_service.upsert_pdf_template") as span:
+        span.set_attribute("sample.id", str(sample_id))
+        span.set_attribute("lineage.id", str(lineage_id))
+
+        current = await repo.get_current_template_by_lineage(session, sample_id, lineage_id)
+        if current is None:
+            raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
+
+        has_experiments = await experiment_repo.any_experiment_uses_template(session, current.id)
+
+        if has_experiments:
+            new_row = await repo.create_new_template_version(
+                session,
+                sample_id,
+                lineage_id,
+                name=current.name,
+                description=current.description,
+                template_data=current.template,
+                override_pdf_components=body.components,
+            )
+            assert new_row is not None
+            pdf = await repo.get_pdf_template(session, new_row.id)
+            assert pdf is not None
+        else:
+            if current.pdf_template is None:
+                pdf = await repo.create_pdf_template(session, current.id, body.components)
+            else:
+                pdf = await repo.update_pdf_template_in_place(session, current.id, body.components)
+                assert pdf is not None
+
+        await session.commit()
+        return PdfTemplateResponse(
+            template_id=pdf.template_id,
+            is_current=pdf.is_current,
+            components=pdf.components,
+            updated_at=pdf.updated_at,
+        )
+
+
+async def delete_pdf_template(
+    session: AsyncSession, sample_id: uuid.UUID, template_id: uuid.UUID
+) -> None:
+    with tracer.start_as_current_span("sample_service.delete_pdf_template") as span:
+        span.set_attribute("sample.id", str(sample_id))
+        span.set_attribute("template.id", str(template_id))
+        if await repo.get_template(session, sample_id, template_id) is None:
+            raise HTTPException(404, f'Experiment template "{template_id}" not found')
+        if not await repo.delete_pdf_template(session, template_id):
+            raise HTTPException(404, f'No PDF template for "{template_id}"')
+        await session.commit()
 
 
 async def delete_experiment_template(

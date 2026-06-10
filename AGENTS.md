@@ -117,6 +117,14 @@ async def get_sample(sample_id: uuid.UUID, db: DbDep) -> SampleSummary:
 | `GET` | `/api/samples/{sample_id}/experiments/{lineage_id}/history` | All versions for a lineage, newest first |
 | `DELETE` | `/api/samples/{sample_id}/experiments/{template_id}` | Soft delete a specific version |
 
+**PDF templates (nested under a specific template version)**
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/samples/{sample_id}/experiments/{template_id}/pdf` | Get PDF components for a specific version |
+| `PUT` | `/api/samples/{sample_id}/experiments/{lineage_id}/pdf` | Create or replace PDF components — in-place if no experiments reference the current version; otherwise creates a new SCD2 version row with the new layout |
+| `DELETE` | `/api/samples/{sample_id}/experiments/{template_id}/pdf` | Hard delete the PDF layout from a specific version |
+
 **Experiments**
 
 | Method | Path | Description |

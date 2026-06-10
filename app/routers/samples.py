@@ -11,8 +11,8 @@ from app.database import get_db
 from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
                         ExperimentTemplateHistoryResponse,
                         ExperimentTemplatesResponse, ExperimentTemplateUpdate,
-                        SampleCreate, SamplesListResponse, SampleSummary,
-                        SampleUpdate)
+                        PdfTemplateBody, PdfTemplateResponse, SampleCreate,
+                        SamplesListResponse, SampleSummary, SampleUpdate)
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
@@ -94,3 +94,32 @@ async def delete_experiment_template(
     sample_id: uuid.UUID, template_id: uuid.UUID, db: DbDep
 ) -> None:
     await service.delete_experiment_template(db, sample_id, template_id)
+
+
+# ---------------------------------------------------------------------------
+# PDF templates nested under a specific experiment template version
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{sample_id}/experiments/{template_id}/pdf")
+async def get_pdf_template(
+    sample_id: uuid.UUID, template_id: uuid.UUID, db: DbDep
+) -> PdfTemplateResponse:
+    return await service.get_pdf_template(db, sample_id, template_id)
+
+
+@router.put("/{sample_id}/experiments/{lineage_id}/pdf")
+async def upsert_pdf_template(
+    sample_id: uuid.UUID,
+    lineage_id: uuid.UUID,
+    body: PdfTemplateBody,
+    db: DbDep,
+) -> PdfTemplateResponse:
+    return await service.upsert_pdf_template(db, sample_id, lineage_id, body)
+
+
+@router.delete("/{sample_id}/experiments/{template_id}/pdf", status_code=204)
+async def delete_pdf_template(
+    sample_id: uuid.UUID, template_id: uuid.UUID, db: DbDep
+) -> None:
+    await service.delete_pdf_template(db, sample_id, template_id)

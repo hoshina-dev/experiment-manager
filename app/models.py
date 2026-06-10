@@ -338,6 +338,22 @@ class ExperimentsListResponse(BaseModel):
     experiments: list[ExperimentSummary]
 
 
+# ---------------------------------------------------------------------------
+# PDF template
+# ---------------------------------------------------------------------------
+
+
+class PdfTemplateBody(BaseModel):
+    components: list[Any]
+
+
+class PdfTemplateResponse(BaseModel):
+    template_id: UUID
+    is_current: bool
+    components: list[Any]
+    updated_at: datetime
+
+
 class ReportStatusResponse(BaseModel):
     status: str
 
