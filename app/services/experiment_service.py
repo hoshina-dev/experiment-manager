@@ -23,13 +23,13 @@ tracer = trace.get_tracer(__name__)
 def _build_state(
     exp_id: uuid.UUID,
     sample_id: uuid.UUID,
-    template_id: uuid.UUID,
     t: ExperimentTemplate,
 ) -> dict:
     return {
         "id": str(exp_id),
         "sample_id": str(sample_id),
-        "template_id": str(template_id),
+        "template_id": str(t.id),  # frozen specific version id
+        "lineage_id": str(t.lineage_id),
         **t.template,
     }
 
@@ -67,18 +67,16 @@ async def create_experiment(
                 status_code=404, detail=f'Sample "{body.sample_id}" not found'
             )
 
-        template_row = await sample_repo.get_template(
-            session, body.sample_id, body.template_id
+        template_row = await sample_repo.get_current_template_by_lineage(
+            session, body.sample_id, body.lineage_id
         )
         if template_row is None:
             raise HTTPException(
                 status_code=404,
-                detail=f'Template "{body.template_id}" not found for sample "{body.sample_id}"',
+                detail=f'Template lineage "{body.lineage_id}" not found for sample "{body.sample_id}"',
             )
 
-        state = _build_state(
-            body.exp_id, body.sample_id, body.template_id, template_row
-        )
+        state = _build_state(body.exp_id, body.sample_id, template_row)
 
         try:
             row = await experiment_repo.create(session, body.exp_id, state)
@@ -98,25 +96,23 @@ async def list_experiments(session: AsyncSession) -> ExperimentsListResponse:
         return ExperimentsListResponse(experiments=[_row_to_summary(r) for r in rows])
 
 
-async def get_experiment(
-    session: AsyncSession, exp_id: uuid.UUID
-) -> ExperimentDetail | None:
+async def get_experiment(session: AsyncSession, exp_id: uuid.UUID) -> ExperimentDetail:
     with tracer.start_as_current_span("experiment_service.get") as span:
         span.set_attribute("exp_id", str(exp_id))
         row = await experiment_repo.get(session, exp_id)
-        return _row_to_detail(row) if row else None
+        if row is None:
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
+        return _row_to_detail(row)
 
 
 async def update_experiment(
     session: AsyncSession, exp_id: uuid.UUID, body: ExperimentUpdate
-) -> ExperimentDetail | None:
+) -> ExperimentDetail:
     with tracer.start_as_current_span("experiment_service.update") as span:
         span.set_attribute("exp_id", str(exp_id))
-
         existing = await experiment_repo.get(session, exp_id)
         if existing is None:
-            return None
-
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
         state = {
             **existing.state,
             "userForm": body.userForm,
@@ -124,19 +120,17 @@ async def update_experiment(
             "calculations": body.calculations,
             "template": body.template,
         }
-
         row = await experiment_repo.update(session, exp_id, state)
         await session.commit()
         return _row_to_detail(row)
 
 
-async def delete_experiment(session: AsyncSession, exp_id: uuid.UUID) -> bool:
+async def delete_experiment(session: AsyncSession, exp_id: uuid.UUID) -> None:
     with tracer.start_as_current_span("experiment_service.delete") as span:
         span.set_attribute("exp_id", str(exp_id))
-        deleted = await experiment_repo.delete(session, exp_id)
-        if deleted:
-            await session.commit()
-        return deleted
+        if not await experiment_repo.delete(session, exp_id):
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
+        await session.commit()
 
 
 async def request_report(

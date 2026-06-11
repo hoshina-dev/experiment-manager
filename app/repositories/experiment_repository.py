@@ -4,7 +4,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db_models import Experiment, PdfTemplate
@@ -32,6 +32,21 @@ async def create(
     session.add(experiment)
     await session.flush()
     return experiment
+
+
+async def any_experiment_uses_template(
+    session: AsyncSession, template_id: uuid.UUID
+) -> bool:
+    """Return True if at least one non-deleted experiment was created from this template version."""
+    result = await session.execute(
+        select(
+            exists().where(
+                Experiment.state["template_id"].astext == str(template_id),
+                Experiment.deleted_at.is_(None),
+            )
+        )
+    )
+    return bool(result.scalar())
 
 
 async def list_all(session: AsyncSession) -> list[Experiment]:

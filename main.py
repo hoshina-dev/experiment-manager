@@ -50,7 +50,11 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
                     )
                 )
                 await experiment_repo.update_report_status(session, exp.id, "pending")
-                logger.info("Requeued orphaned report job for exp_id=%s (was: %s)", exp.id, exp.report_status)
+                logger.info(
+                    "Requeued orphaned report job for exp_id=%s (was: %s)",
+                    exp.id,
+                    exp.report_status,
+                )
             except asyncio.QueueFull:
                 logger.warning(
                     "Queue full at recovery — marking exp_id=%s as failed", exp.id

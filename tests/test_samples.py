@@ -9,7 +9,7 @@ from tests.conftest import (CALORIFIC_TEMPLATE_ID, COAL_ID,
 
 _NEW_SAMPLE = {"name": "Test Sample", "description": "For testing"}
 _NEW_EXPERIMENT_TEMPLATE = {
-    "name": "Test Analysis",
+    "title": "Test Analysis",
     "description": "A test analysis",
     "workerForm": {"title": "Test Form", "questions": []},
     "calculations": {"x": "a + b"},
@@ -141,6 +141,8 @@ async def test_create_experiment_template_returns_201(client: AsyncClient):
     )
     assert response.status_code == 201
     assert response.json()["name"] == "Test Analysis"
+    assert "lineage_id" in response.json()
+    assert response.json()["version"] == 1
 
 
 async def test_create_experiment_template_unknown_sample_returns_404(
@@ -178,14 +180,15 @@ async def test_get_experiment_template_unknown_returns_404(client: AsyncClient):
 
 
 async def test_update_experiment_template_returns_200(client: AsyncClient):
-    tid = (
+    created = (
         await client.post(
             f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
         )
-    ).json()["id"]
-    updated = {**_NEW_EXPERIMENT_TEMPLATE, "name": "Updated Analysis"}
+    ).json()
+    lineage_id = created["lineage_id"]
+    updated = {**_NEW_EXPERIMENT_TEMPLATE, "title": "Updated Analysis"}
     response = await client.put(
-        f"/api/samples/{COAL_ID}/experiments/{tid}", json=updated
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}", json=updated
     )
     assert response.status_code == 200
     assert response.json()["name"] == "Updated Analysis"
@@ -231,4 +234,181 @@ async def test_delete_experiment_template_is_gone_after_delete(client: AsyncClie
 async def test_delete_experiment_template_unknown_returns_404(client: AsyncClient):
     assert (
         await client.delete(f"/api/samples/{COAL_ID}/experiments/{uuid.uuid4()}")
+    ).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PDF template endpoints
+# ---------------------------------------------------------------------------
+
+_PDF_COMPONENTS = [{"type": "text", "x": 10, "y": 20, "content": "Hello"}]
+
+
+async def test_get_pdf_template_no_pdf_returns_404(client: AsyncClient):
+    # Freshly created template has no PDF yet
+    tid = (
+        await client.post(
+            f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
+        )
+    ).json()["id"]
+    assert (
+        await client.get(f"/api/samples/{COAL_ID}/experiments/{tid}/pdf")
+    ).status_code == 404
+
+
+async def test_upsert_pdf_template_creates_and_returns_200(client: AsyncClient):
+    created = (
+        await client.post(
+            f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
+        )
+    ).json()
+    lineage_id = created["lineage_id"]
+    response = await client.put(
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}/pdf",
+        json={"components": _PDF_COMPONENTS},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["components"] == _PDF_COMPONENTS
+    assert body["is_current"] is True
+    assert "template_id" in body
+
+
+async def test_get_pdf_template_returns_200_after_upsert(client: AsyncClient):
+    created = (
+        await client.post(
+            f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
+        )
+    ).json()
+    lineage_id = created["lineage_id"]
+    template_id = created["id"]
+    await client.put(
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}/pdf",
+        json={"components": _PDF_COMPONENTS},
+    )
+    response = await client.get(f"/api/samples/{COAL_ID}/experiments/{template_id}/pdf")
+    assert response.status_code == 200
+    assert response.json()["components"] == _PDF_COMPONENTS
+
+
+async def test_upsert_pdf_template_updates_in_place_when_no_experiments(
+    client: AsyncClient,
+):
+    created = (
+        await client.post(
+            f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
+        )
+    ).json()
+    lineage_id = created["lineage_id"]
+    original_id = created["id"]
+
+    await client.put(
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}/pdf",
+        json={"components": _PDF_COMPONENTS},
+    )
+    updated_components = [{"type": "text", "x": 50, "y": 60, "content": "Updated"}]
+    response = await client.put(
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}/pdf",
+        json={"components": updated_components},
+    )
+    assert response.status_code == 200
+    # Same template_id — no new version created
+    assert response.json()["template_id"] == original_id
+    assert response.json()["components"] == updated_components
+
+
+async def test_upsert_pdf_template_creates_new_version_when_experiments_exist(
+    client: AsyncClient,
+):
+    created = (
+        await client.post(
+            f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
+        )
+    ).json()
+    lineage_id = created["lineage_id"]
+    original_template_id = created["id"]
+
+    # Give it a PDF first
+    await client.put(
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}/pdf",
+        json={"components": _PDF_COMPONENTS},
+    )
+
+    # Create an experiment referencing this template version
+    await client.post(
+        "/api/experiments",
+        json={
+            "exp_id": str(uuid.uuid4()),
+            "sample_id": str(COAL_ID),
+            "lineage_id": lineage_id,
+        },
+    )
+
+    # Now update the PDF — should produce a new template version
+    new_components = [{"type": "image", "x": 0, "y": 0, "src": "logo.png"}]
+    response = await client.put(
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}/pdf",
+        json={"components": new_components},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    # New template_id — SCD2 row was created
+    assert body["template_id"] != original_template_id
+    assert body["components"] == new_components
+    assert body["is_current"] is True
+
+
+async def test_delete_pdf_template_returns_204(client: AsyncClient):
+    created = (
+        await client.post(
+            f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
+        )
+    ).json()
+    lineage_id = created["lineage_id"]
+    tid = created["id"]
+    await client.put(
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}/pdf",
+        json={"components": _PDF_COMPONENTS},
+    )
+    assert (
+        await client.delete(f"/api/samples/{COAL_ID}/experiments/{tid}/pdf")
+    ).status_code == 204
+
+
+async def test_delete_pdf_template_is_gone_after_delete(client: AsyncClient):
+    created = (
+        await client.post(
+            f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
+        )
+    ).json()
+    lineage_id = created["lineage_id"]
+    tid = created["id"]
+    await client.put(
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}/pdf",
+        json={"components": _PDF_COMPONENTS},
+    )
+    await client.delete(f"/api/samples/{COAL_ID}/experiments/{tid}/pdf")
+    assert (
+        await client.get(f"/api/samples/{COAL_ID}/experiments/{tid}/pdf")
+    ).status_code == 404
+
+
+async def test_upsert_pdf_template_unknown_lineage_returns_404(client: AsyncClient):
+    assert (
+        await client.put(
+            f"/api/samples/{COAL_ID}/experiments/{uuid.uuid4()}/pdf",
+            json={"components": []},
+        )
+    ).status_code == 404
+
+
+async def test_get_pdf_template_unknown_template_returns_404(client: AsyncClient):
+    assert (
+        await client.get(f"/api/samples/{COAL_ID}/experiments/{uuid.uuid4()}/pdf")
+    ).status_code == 404
+
+
+async def test_delete_pdf_template_unknown_returns_404(client: AsyncClient):
+    assert (
+        await client.delete(f"/api/samples/{COAL_ID}/experiments/{uuid.uuid4()}/pdf")
     ).status_code == 404

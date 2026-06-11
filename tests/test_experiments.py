@@ -11,7 +11,9 @@ _EXP_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000001")
 _VALID_BODY = {
     "exp_id": str(_EXP_ID),
     "sample_id": str(COAL_ID),
-    "template_id": str(PROXIMATE_TEMPLATE_ID),
+    "lineage_id": str(
+        PROXIMATE_TEMPLATE_ID
+    ),  # PROXIMATE_TEMPLATE_ID == lineage_id for seeded v1 rows
 }
 
 # PUT body — only the 4 updatable fields
@@ -60,7 +62,7 @@ async def test_create_experiment_unknown_template_returns_404(client: AsyncClien
     body = {
         **_VALID_BODY,
         "exp_id": str(uuid.uuid4()),
-        "template_id": str(uuid.uuid4()),
+        "lineage_id": str(uuid.uuid4()),
     }
     assert (await client.post("/api/experiments", json=body)).status_code == 404
 

@@ -46,8 +46,11 @@ class WorkerForm(BaseModel):
 
 class ExperimentTemplateSummary(BaseModel):
     id: UUID
+    lineage_id: UUID
     name: str
     description: str | None = None
+    version: int
+    is_current: bool
 
 
 class ExperimentTemplatesResponse(BaseModel):
@@ -55,10 +58,19 @@ class ExperimentTemplatesResponse(BaseModel):
     experiments: list[ExperimentTemplateSummary]
 
 
+class ExperimentTemplateHistoryResponse(BaseModel):
+    lineage_id: UUID
+    versions: list[ExperimentTemplateSummary]
+
+
 class ExperimentTemplateDetail(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: UUID
+    lineage_id: UUID
+    name: str
+    version: int
+    is_current: bool
 
 
 # ---------------------------------------------------------------------------
@@ -205,14 +217,14 @@ class ExperimentCreate(BaseModel):
             "example": {
                 "exp_id": "7b1e39a5-86e2-433f-a194-397061316cb6",
                 "sample_id": "a1b2c3d4-0002-0002-0002-000000000002",
-                "template_id": "dd949e81-22ea-46b0-aa04-c0c80d22a9a2",
+                "lineage_id": "dd949e81-22ea-46b0-aa04-c0c80d22a9a2",
             }
         }
     )
 
     exp_id: UUID
     sample_id: UUID
-    template_id: UUID
+    lineage_id: UUID
 
 
 _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
@@ -324,6 +336,22 @@ class ExperimentDetail(BaseModel):
 
 class ExperimentsListResponse(BaseModel):
     experiments: list[ExperimentSummary]
+
+
+# ---------------------------------------------------------------------------
+# PDF template
+# ---------------------------------------------------------------------------
+
+
+class PdfTemplateBody(BaseModel):
+    components: list[Any]
+
+
+class PdfTemplateResponse(BaseModel):
+    template_id: UUID
+    is_current: bool
+    components: list[Any]
+    updated_at: datetime
 
 
 class ReportStatusResponse(BaseModel):

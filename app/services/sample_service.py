@@ -7,18 +7,39 @@ from opentelemetry import trace
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.repositories.experiment_repository as experiment_repo
 import app.repositories.sample_repository as repo
 from app.db_models import ExperimentTemplate
 from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
+                        ExperimentTemplateHistoryResponse,
                         ExperimentTemplatesResponse, ExperimentTemplateSummary,
-                        ExperimentTemplateUpdate, SampleCreate,
-                        SamplesListResponse, SampleSummary, SampleUpdate)
+                        ExperimentTemplateUpdate, PdfTemplateBody,
+                        PdfTemplateResponse, SampleCreate, SamplesListResponse,
+                        SampleSummary, SampleUpdate)
 
 tracer = trace.get_tracer(__name__)
 
 
-def _to_experiment_template_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
-    return ExperimentTemplateDetail(id=t.id, **t.template)
+def _to_summary(t: ExperimentTemplate) -> ExperimentTemplateSummary:
+    return ExperimentTemplateSummary(
+        id=t.id,
+        lineage_id=t.lineage_id,
+        name=t.name,
+        description=t.description,
+        version=t.version,
+        is_current=t.is_current,
+    )
+
+
+def _to_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
+    return ExperimentTemplateDetail(
+        id=t.id,
+        lineage_id=t.lineage_id,
+        name=t.name,
+        version=t.version,
+        is_current=t.is_current,
+        **t.template,
+    )
 
 
 async def get_samples(session: AsyncSession) -> SamplesListResponse:
@@ -32,14 +53,12 @@ async def get_samples(session: AsyncSession) -> SamplesListResponse:
         )
 
 
-async def get_sample(
-    session: AsyncSession, sample_id: uuid.UUID
-) -> SampleSummary | None:
+async def get_sample(session: AsyncSession, sample_id: uuid.UUID) -> SampleSummary:
     with tracer.start_as_current_span("sample_service.get_sample") as span:
         span.set_attribute("sample.id", str(sample_id))
         row = await repo.get_sample_type(session, sample_id)
         if row is None:
-            return None
+            raise HTTPException(404, f'Sample "{sample_id}" not found')
         return SampleSummary(id=row.id, name=row.name, description=row.description)
 
 
@@ -50,15 +69,13 @@ async def create_sample(session: AsyncSession, body: SampleCreate) -> SampleSumm
             await session.commit()
         except IntegrityError:
             await session.rollback()
-            raise HTTPException(
-                status_code=409, detail=f'Sample "{body.name}" already exists'
-            )
+            raise HTTPException(409, f'Sample "{body.name}" already exists')
         return SampleSummary(id=row.id, name=row.name, description=row.description)
 
 
 async def update_sample(
     session: AsyncSession, sample_id: uuid.UUID, body: SampleUpdate
-) -> SampleSummary | None:
+) -> SampleSummary:
     with tracer.start_as_current_span("sample_service.update_sample") as span:
         span.set_attribute("sample.id", str(sample_id))
         try:
@@ -66,69 +83,77 @@ async def update_sample(
                 session, sample_id, body.name, body.description
             )
             if row is None:
-                return None
+                raise HTTPException(404, f'Sample "{sample_id}" not found')
             await session.commit()
         except IntegrityError:
             await session.rollback()
-            raise HTTPException(
-                status_code=409, detail=f'Sample name "{body.name}" already exists'
-            )
+            raise HTTPException(409, f'Sample name "{body.name}" already taken')
         return SampleSummary(id=row.id, name=row.name, description=row.description)
 
 
-async def delete_sample(session: AsyncSession, sample_id: uuid.UUID) -> bool:
+async def delete_sample(session: AsyncSession, sample_id: uuid.UUID) -> None:
     with tracer.start_as_current_span("sample_service.delete_sample") as span:
         span.set_attribute("sample.id", str(sample_id))
-        deleted = await repo.delete_sample_type(session, sample_id)
-        if deleted:
-            await session.commit()
-        return deleted
+        if not await repo.delete_sample_type(session, sample_id):
+            raise HTTPException(404, f'Sample "{sample_id}" not found')
+        await session.commit()
 
 
 async def get_experiment_templates(
     session: AsyncSession, sample_id: uuid.UUID
-) -> ExperimentTemplatesResponse | None:
+) -> ExperimentTemplatesResponse:
     with tracer.start_as_current_span(
         "sample_service.get_experiment_templates"
     ) as span:
         span.set_attribute("sample.id", str(sample_id))
         sample = await repo.get_sample_type(session, sample_id)
         if sample is None:
-            return None
+            raise HTTPException(404, f'Sample "{sample_id}" not found')
         templates = await repo.list_templates(session, sample_id)
         return ExperimentTemplatesResponse(
             sample_id=sample.id,
-            experiments=[
-                ExperimentTemplateSummary(
-                    id=t.id, name=t.name, description=t.description
-                )
-                for t in templates
-            ],
+            experiments=[_to_summary(t) for t in templates],
         )
 
 
 async def get_experiment_template(
     session: AsyncSession, sample_id: uuid.UUID, template_id: uuid.UUID
-) -> ExperimentTemplateDetail | None:
+) -> ExperimentTemplateDetail:
     with tracer.start_as_current_span("sample_service.get_experiment_template") as span:
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("template.id", str(template_id))
         row = await repo.get_template(session, sample_id, template_id)
         if row is None:
-            return None
-        return _to_experiment_template_detail(row)
+            raise HTTPException(404, f'Experiment template "{template_id}" not found')
+        return _to_detail(row)
+
+
+async def get_experiment_template_history(
+    session: AsyncSession, sample_id: uuid.UUID, lineage_id: uuid.UUID
+) -> ExperimentTemplateHistoryResponse:
+    with tracer.start_as_current_span(
+        "sample_service.get_experiment_template_history"
+    ) as span:
+        span.set_attribute("sample.id", str(sample_id))
+        span.set_attribute("lineage.id", str(lineage_id))
+        rows = await repo.list_template_history(session, sample_id, lineage_id)
+        if not rows:
+            raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
+        return ExperimentTemplateHistoryResponse(
+            lineage_id=lineage_id,
+            versions=[_to_summary(t) for t in rows],
+        )
 
 
 async def create_experiment_template(
     session: AsyncSession, sample_id: uuid.UUID, body: ExperimentTemplateCreate
-) -> ExperimentTemplateDetail | None:
+) -> ExperimentTemplateDetail:
     with tracer.start_as_current_span(
         "sample_service.create_experiment_template"
     ) as span:
         span.set_attribute("sample.id", str(sample_id))
-        sample = await repo.get_sample_type(session, sample_id)
-        if sample is None:
-            return None
+        if await repo.get_sample_type(session, sample_id) is None:
+            raise HTTPException(404, f'Sample "{sample_id}" not found')
         template_data = body.model_dump(exclude_none=True)
         try:
             row = await repo.create_template(
@@ -138,54 +163,152 @@ async def create_experiment_template(
         except IntegrityError:
             await session.rollback()
             raise HTTPException(
-                status_code=409,
-                detail=f'Experiment template "{body.title}" already exists for this sample',
+                409,
+                f'Experiment template "{body.title}" already exists for this sample',
             )
-        return _to_experiment_template_detail(row)
+        return _to_detail(row)
 
 
 async def update_experiment_template(
     session: AsyncSession,
     sample_id: uuid.UUID,
-    template_id: uuid.UUID,
+    lineage_id: uuid.UUID,
     body: ExperimentTemplateUpdate,
-) -> ExperimentTemplateDetail | None:
+) -> ExperimentTemplateDetail:
     with tracer.start_as_current_span(
         "sample_service.update_experiment_template"
     ) as span:
         span.set_attribute("sample.id", str(sample_id))
-        span.set_attribute("template.id", str(template_id))
+        span.set_attribute("lineage.id", str(lineage_id))
+
+        current = await repo.get_current_template_by_lineage(
+            session, sample_id, lineage_id
+        )
+        if current is None:
+            raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
+
         template_data = body.model_dump(exclude_none=True)
+        has_experiments = await experiment_repo.any_experiment_uses_template(
+            session, current.id
+        )
+
         try:
-            row = await repo.update_template(
-                session,
-                sample_id,
-                template_id,
-                body.title,
-                body.description,
-                template_data,
-            )
-            if row is None:
-                return None
+            if has_experiments:
+                row = await repo.create_new_template_version(
+                    session,
+                    sample_id,
+                    lineage_id,
+                    body.title,
+                    body.description,
+                    template_data,
+                )
+            else:
+                row = await repo.update_template_in_place(
+                    session,
+                    sample_id,
+                    current.id,
+                    body.title,
+                    body.description,
+                    template_data,
+                )
+            assert (
+                row is not None
+            )  # current validated non-None above; both paths only return None if current is None
             await session.commit()
         except IntegrityError:
             await session.rollback()
             raise HTTPException(
-                status_code=409,
-                detail=f'Experiment template "{body.title}" already exists for this sample',
+                409,
+                f'Experiment template "{body.title}" already exists for this sample',
             )
-        return _to_experiment_template_detail(row)
+        return _to_detail(row)
+
+
+async def get_pdf_template(
+    session: AsyncSession, sample_id: uuid.UUID, template_id: uuid.UUID
+) -> PdfTemplateResponse:
+    with tracer.start_as_current_span("sample_service.get_pdf_template") as span:
+        span.set_attribute("sample.id", str(sample_id))
+        span.set_attribute("template.id", str(template_id))
+        if await repo.get_template(session, sample_id, template_id) is None:
+            raise HTTPException(404, f'Experiment template "{template_id}" not found')
+        pdf = await repo.get_pdf_template(session, template_id)
+        if pdf is None:
+            raise HTTPException(404, f'No PDF template for "{template_id}"')
+        return PdfTemplateResponse(
+            template_id=pdf.template_id,
+            is_current=pdf.is_current,
+            components=pdf.components,
+            updated_at=pdf.updated_at,
+        )
+
+
+async def upsert_pdf_template(
+    session: AsyncSession,
+    sample_id: uuid.UUID,
+    lineage_id: uuid.UUID,
+    body: PdfTemplateBody,
+) -> PdfTemplateResponse:
+    with tracer.start_as_current_span("sample_service.upsert_pdf_template") as span:
+        span.set_attribute("sample.id", str(sample_id))
+        span.set_attribute("lineage.id", str(lineage_id))
+
+        current = await repo.get_current_template_by_lineage(session, sample_id, lineage_id)
+        if current is None:
+            raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
+
+        has_experiments = await experiment_repo.any_experiment_uses_template(session, current.id)
+
+        if has_experiments:
+            new_row = await repo.create_new_template_version(
+                session,
+                sample_id,
+                lineage_id,
+                name=current.name,
+                description=current.description,
+                template_data=current.template,
+                override_pdf_components=body.components,
+            )
+            assert new_row is not None
+            pdf = await repo.get_pdf_template(session, new_row.id)
+            assert pdf is not None
+        else:
+            if current.pdf_template is None:
+                pdf = await repo.create_pdf_template(session, current.id, body.components)
+            else:
+                pdf = await repo.update_pdf_template_in_place(session, current.id, body.components)
+                assert pdf is not None
+
+        await session.commit()
+        return PdfTemplateResponse(
+            template_id=pdf.template_id,
+            is_current=pdf.is_current,
+            components=pdf.components,
+            updated_at=pdf.updated_at,
+        )
+
+
+async def delete_pdf_template(
+    session: AsyncSession, sample_id: uuid.UUID, template_id: uuid.UUID
+) -> None:
+    with tracer.start_as_current_span("sample_service.delete_pdf_template") as span:
+        span.set_attribute("sample.id", str(sample_id))
+        span.set_attribute("template.id", str(template_id))
+        if await repo.get_template(session, sample_id, template_id) is None:
+            raise HTTPException(404, f'Experiment template "{template_id}" not found')
+        if not await repo.delete_pdf_template(session, template_id):
+            raise HTTPException(404, f'No PDF template for "{template_id}"')
+        await session.commit()
 
 
 async def delete_experiment_template(
     session: AsyncSession, sample_id: uuid.UUID, template_id: uuid.UUID
-) -> bool:
+) -> None:
     with tracer.start_as_current_span(
         "sample_service.delete_experiment_template"
     ) as span:
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("template.id", str(template_id))
-        deleted = await repo.delete_template(session, sample_id, template_id)
-        if deleted:
-            await session.commit()
-        return deleted
+        if not await repo.delete_template(session, sample_id, template_id):
+            raise HTTPException(404, f'Experiment template "{template_id}" not found')
+        await session.commit()
