@@ -199,7 +199,7 @@ SELECT id, 'pH Measurement', 'Measure hydrogen ion concentration in water sample
     "title": "pH Measurement Form",
     "description": "Record pH meter readings for the water sample.",
     "questions": [
-      { "id": "sample_id_label", "type": "text",   "label": "Sample label / collection point",       "required": true  },
+      { "id": "sample_id_label", "type": "string", "label": "Sample label / collection point",       "required": true  },
       { "id": "temperature",     "type": "number", "label": "Sample temperature at measurement (°C)", "required": true,  "min": 0, "max": 100, "step": 0.1,  "default": 25.0 },
       { "id": "ph_reading_1",    "type": "number", "label": "pH reading — replicate 1",               "required": true,  "min": 0, "max": 14,  "step": 0.01, "default": 7.0  },
       { "id": "ph_reading_2",    "type": "number", "label": "pH reading — replicate 2",               "required": true,  "min": 0, "max": 14,  "step": 0.01, "default": 7.0  }
@@ -239,7 +239,7 @@ SELECT id, 'Turbidity Measurement', 'Measure water clarity using a nephelometric
     "title": "Turbidity Form",
     "description": "Record turbidimeter readings.",
     "questions": [
-      { "id": "sample_id_label", "type": "text",   "label": "Sample label / collection point",        "required": true },
+      { "id": "sample_id_label", "type": "string", "label": "Sample label / collection point",        "required": true },
       { "id": "ntu_reading_1",   "type": "number", "label": "Turbidity reading — replicate 1 (NTU)",  "required": true, "min": 0, "max": 1000, "step": 0.01, "default": 2.5 },
       { "id": "ntu_reading_2",   "type": "number", "label": "Turbidity reading — replicate 2 (NTU)",  "required": true, "min": 0, "max": 1000, "step": 0.01, "default": 2.5 }
     ]
