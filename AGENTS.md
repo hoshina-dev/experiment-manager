@@ -265,6 +265,12 @@ Migrations are run **manually** — no Alembic.
 ```bash
 # Apply schema
 psql $DATABASE_URL -f migrations/001_initial_schema.up.sql
+psql $DATABASE_URL -f migrations/002_partial_unique_indexes.up.sql
+psql $DATABASE_URL -f migrations/003_report_initial_schema.up.sql
+psql $DATABASE_URL -f migrations/004_experiment_report_fields.up.sql
+psql $DATABASE_URL -f migrations/005_scd2_experiment_templates.up.sql
+psql $DATABASE_URL -f migrations/006_experiment_templates_lineage_id_default.up.sql
+psql $DATABASE_URL -f migrations/007_drop_stale_template_name_index.up.sql
 
 # Seed dev data
 psql $DATABASE_URL -f sql_mock/900_seed_samples.up.sql
