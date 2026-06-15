@@ -25,6 +25,7 @@ _RULES: list[tuple[re.Pattern, str]] = [
     # Catch-all: Math.anything → math.anything (sqrt, floor, ceil, log, sin, cos, ...)
     (re.compile(r"\bMath\."),        "math."),
     # JS operators and literals
+    (re.compile(r"\|\|"),            "or"),
     (re.compile(r"==="),             "=="),
     (re.compile(r"!=="),             "!="),
     (re.compile(r"\bnull\b"),        "None"),

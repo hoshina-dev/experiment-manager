@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.services.calculation_service as calc_service
 import app.services.experiment_service as service
 from app.database import get_db
 from app.models import (ExperimentCreate, ExperimentDetail,
@@ -41,3 +42,8 @@ async def update_experiment(
 @router.delete("/{exp_id}", status_code=204)
 async def delete_experiment(exp_id: uuid.UUID, db: DbDep) -> None:
     await service.delete_experiment(db, exp_id)
+
+
+@router.post("/{exp_id}/calculate", response_model=ExperimentDetail)
+async def calculate_experiment(exp_id: uuid.UUID, db: DbDep) -> ExperimentDetail:
+    return await calc_service.calculate(db, exp_id)

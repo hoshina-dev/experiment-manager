@@ -30,6 +30,7 @@ from fastapi import HTTPException
     ("Math.log(x)",    "math.log(x)"),
     ("Math.sin(x)",    "math.sin(x)"),
     # JS operators and literals
+    ("a || b",         "a or b"),
     ("a === b",        "a == b"),
     ("a !== b",        "a != b"),
     ("null",           "None"),
