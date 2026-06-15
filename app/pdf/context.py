@@ -38,9 +38,10 @@ def flatten_context(data: dict[str, Any]) -> dict[str, str]:
                             context[q_id] = str(default)
                         else:
                             context[q_id] = f"[{q_label}]"
-            elif key == "calculations":
+            elif key in ("calculations", "calc_result"):
                 for sub_key, sub_val in value.items():
-                    if _VALID_KEY.match(sub_key) and sub_key not in context:
+                    # calc_result always overrides calculations (actual values > expressions)
+                    if _VALID_KEY.match(sub_key) and (key == "calc_result" or sub_key not in context):
                         if isinstance(sub_val, (str, int, float, bool)):
                             context[sub_key] = str(sub_val)
                         else:

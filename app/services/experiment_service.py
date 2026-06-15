@@ -133,6 +133,24 @@ async def delete_experiment(session: AsyncSession, exp_id: uuid.UUID) -> None:
         await session.commit()
 
 
+async def upgrade_template(session: AsyncSession, exp_id: uuid.UUID) -> ExperimentDetail:
+    with tracer.start_as_current_span("experiment_service.upgrade_template") as span:
+        span.set_attribute("exp_id", str(exp_id))
+        row = await experiment_repo.get(session, exp_id)
+        if row is None:
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
+        template = await sample_repo.get_template_by_id(session, uuid.UUID(row.state["template_id"]))
+        if template is None:
+            raise HTTPException(404, f'Template for experiment "{exp_id}" not found')
+        current = await sample_repo.get_current_template_by_lineage_id(session, template.lineage_id)
+        if current is None:
+            raise HTTPException(404, f'No current template found for lineage "{template.lineage_id}"')
+        new_state = {**row.state, "template_id": str(current.id)}
+        row = await experiment_repo.update(session, exp_id, new_state)
+        await session.commit()
+        return _row_to_detail(row)
+
+
 async def request_report(
     session: AsyncSession,
     exp_id: uuid.UUID,
