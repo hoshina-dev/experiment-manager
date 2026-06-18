@@ -39,40 +39,15 @@ The renderer automatically prints **"Page N of M"** centred at `y=30` on every p
 
 ## Template Variables — `{{field}}`
 
-Any string field in a component can contain `{{field_name}}` placeholders. The engine replaces them at render time using the experiment's flattened context.
+Any string field in a component can contain `{{field_name}}` placeholders. The engine replaces them at render time using a flattened render context built from the experiment context.
 
-### What goes into context
+For the full list of available variables and how the render context is built, see `docs/experiment-context.md`.
 
-The context is built from the experiment state by these rules (in priority order):
-
-| Source | Key | Value |
-|---|---|---|
-| Top-level scalars | Key as-is (`id`, `title`, `description`, …) | String of the value |
-| `userForm.questions[].id` | Question `id` | `value` if set, else `default`, else `[Label]` |
-| `workerForm.questions[].id` | Question `id` | `value` if set, else `default`, else `[Label]` |
-| `calculations` keys | Key as-is | The stored string (already evaluated by client) |
-| `template` | `"template"` | The template string with its own `{{}}` already resolved |
-| Other nested dicts | `parentKey_childKey` | String of the scalar value |
-
-**Rules:**
-- Key must match `[A-Za-z_$][A-Za-z0-9_$]*` — keys with spaces or hyphens are silently skipped
-- `workerForm` question values take precedence over `userForm` when both have the same `id`
-- `calculations` values take precedence over any previous key of the same name
-- Unresolved `{{field}}` placeholders are left as-is in the output (no crash)
-- Lists (e.g. multi-select values) are skipped — they cannot be referenced in templates
-
-### Common available variables
-
-After a `PUT /api/experiments/{exp_id}` with values filled in, these are typically available:
-
-```
-id               — experiment UUID
-title            — experiment title (from template JSONB)
-description      — experiment description
-template         — fully interpolated result string (e.g. "GCV = 6313 cal/g")
-<question_id>    — one entry per workerForm/userForm question id
-<calc_key>       — one entry per calculations key
-```
+**Key rules:**
+- `calc_result` values override `calculations` values for the same key — `{{my_var}}` renders the computed number after `POST /calculate` is called, and the raw JS expression before.
+- Unresolved `{{field}}` placeholders are left as-is in the output — no crash.
+- Lists (multi-select, checkbox-group, tags) are skipped and cannot be used in placeholders.
+- Always call `POST /calculate` before generating a PDF if the experiment template uses `calculations`.
 
 ---
 

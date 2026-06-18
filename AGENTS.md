@@ -15,8 +15,9 @@ Key concepts:
 | Term | Meaning |
 |---|---|
 | **SampleType** | A category of material being analysed (e.g. Coal, Tomato, Environment Water) |
-| **ExperimentTemplate** | A specific analysis that can be run on a sample type — contains `workerForm`, `calculations`, and output `template`. `userForm` is optional. |
-| **Experiment** | One instance of an analysis in progress. `id` is supplied by the Ticketing Service (1 exp_id per analysis selected). Stores a full snapshot of the template at creation time. The worker embeds measured values directly into the state blob via PUT. |
+| **Experiment template** | A specific analysis that can be run on a sample type — contains `workerForm`, `calculations`, and output `template`. `userForm` is optional. |
+| **Experiment context** | The full JSON blob stored per experiment instance (`experiments.state`). Created from the experiment template at experiment creation time; updated by the worker via PUT. Always refer to this as "experiment context", never "experiment state" or "experiment JSON". |
+| **Experiment** | One instance of an analysis in progress. `id` is supplied by the Ticketing Service (1 exp_id per analysis selected). Stores the experiment context at creation time. The worker embeds measured values directly into the context via PUT. |
 
 ---
 
@@ -43,18 +44,19 @@ app/
   pdf/
     __init__.py                          # Re-exports generate_pdf
     components.py                        # PDF component dataclasses + component_from_dict
-    context.py                           # flatten_context — builds template variable map
+    context.py                           # flatten_context — builds template variable map from experiment context
     engine.py                            # TemplateEngine: parse, validate, build_context
     parser.py                            # interpolate_template, extract_fields
     renderer.py                          # generate_pdf entry point + render_pdf
     r2_client.py                         # upload_pdf, presign_download, check_connection (boto3)
   routers/
     samples.py                           # /api/samples — SampleType + ExperimentTemplate CRUD
-    experiments.py                       # /api/experiments — Experiment CRUD
+    experiments.py                       # /api/experiments — Experiment CRUD + calculate
     reports.py                           # /api/experiments/{id}/report/generate|download
   services/
     sample_service.py                    # Business logic for samples and templates
     experiment_service.py                # Business logic for experiments + report enqueue
+    calculation_service.py               # Safe Python eval, calculate()
   repositories/
     sample_repository.py                 # Async DB access for sample_types and experiment_templates
     experiment_repository.py             # Async DB access for experiments + report status updates
@@ -62,6 +64,8 @@ tests/
   conftest.py                            # Async fixtures — test engine, seed catalogue, per-test rollback client
   test_samples.py
   test_experiments.py
+  test_calculation_service.py            # Unit tests for _extract_inputs, _eval_calculations
+  test_calculate_endpoint.py             # Integration tests for POST /calculate
 ```
 
 Layer rules (enforce strictly):
@@ -129,11 +133,12 @@ async def get_sample(sample_id: uuid.UUID, db: DbDep) -> SampleSummary:
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/experiments` | Create experiment — initialises state from the template |
+| `POST` | `/api/experiments` | Create experiment — initialises experiment context from the experiment template |
 | `GET` | `/api/experiments` | List experiments (summary only) |
-| `GET` | `/api/experiments/{exp_id}` | Full experiment detail |
-| `PUT` | `/api/experiments/{exp_id}` | Replace experiment state — send the whole JSON back with `value` added to each question |
+| `GET` | `/api/experiments/{exp_id}` | Full experiment context |
+| `PUT` | `/api/experiments/{exp_id}` | Replace experiment context — send the whole JSON back with `value` added to each question |
 | `DELETE` | `/api/experiments/{exp_id}` | Soft delete |
+| `POST` | `/api/experiments/{exp_id}/calculate` | Evaluate `calculations` expressions against `workerForm` inputs → writes `calc_result` into experiment context → returns updated context |
 
 **Reports**
 
@@ -146,19 +151,19 @@ POST `/api/experiments` body:
 ```json
 { "exp_id": "uuid-from-ticketing-service", "sample_id": "uuid", "lineage_id": "uuid" }
 ```
-`lineage_id` identifies the template concept; the server resolves it to the current version id and freezes it into the experiment state.
+`lineage_id` identifies the experiment template concept; the server resolves it to the current version id and freezes it into the experiment context.
 
-PUT body — send the full state flat, with `"value"` added to each question:
+PUT body — send the full context flat, with `"value"` added to each question:
 ```json
 {
-  "title": "Calorific Value (GCV)",
-  "template": "GCV = {{gcv_cal_g}} ...",
   "workerForm": {
     "questions": [
       { "id": "sample_mass", "type": "number", "default": 1.0, "value": 1.023 }
     ]
   },
-  "calculations": { ... }
+  "calculations": { "gcv_cal_g": "round((water_equivalent * temp_rise) / sample_mass)" },
+  "template": "GCV = {{gcv_cal_g}} cal/g",
+  "userForm": null
 }
 ```
 
@@ -168,38 +173,51 @@ Returns 409 if `exp_id` already exists.
 
 ## Data model notes
 
-### Experiment state (JSONB)
-`experiments.state` is a flat dict. At creation it looks like:
+### Experiment context (JSONB)
+`experiments.state` stores the **experiment context** — a flat JSON dict. At creation it is initialised from the experiment template and looks like:
 ```json
 {
-  "id": "exp-uuid",
-  "sample_id": "uuid",
+  "id":          "exp-uuid",
+  "sample_id":   "uuid",
   "template_id": "uuid",
-  "title": "Proximate Analysis",
+  "title":       "Proximate Analysis",
   "description": "...",
-  "workerForm": { ... },
-  "calculations": { ... },
-  "template": "Output string with {{placeholders}}"
+  "userForm":    { "questions": [ ... ] },
+  "workerForm":  { "questions": [ ... ] },
+  "calculations": { "result_var": "Python expression" },
+  "template":    "Output string with {{placeholders}}",
+  "calc_result": { "result_var": 42.0 }
 }
 ```
-On PUT the worker sends back the same blob with `"value"` filled into each question. The service merges the PUT body with the authoritative `id`, `sample_id`, and `template_id` from the existing state — those three fields cannot be changed after creation.
 
-`GET /api/experiments/{exp_id}` returns `**state` merged with the DB-level report columns (`report_status`, `report_r2_key`, `report_generated_at`, `created_at`). An experiment response is therefore identical in shape to an `ExperimentTemplateDetail` plus `id`, `sample_id`, `template_id`, and the report fields.
+Field notes:
+- `id`, `sample_id`, `template_id` — frozen at creation; cannot be changed via PUT.
+- `workerForm.questions[].value` — filled in by the worker via PUT after measurement.
+- `calculations` — plain Python expressions referencing `workerForm` question ids as variables. Evaluated server-side by `POST /calculate`.
+- `calc_result` — written by `POST /calculate`. A dict of `{ expression_name: computed_float }`. Keys match `calculations` keys. Used by the PDF engine in place of the raw expressions. Absent until calculate is called.
+- `template` — output string with `{{placeholder}}` references; rendered by the PDF engine.
 
-### ExperimentTemplate JSONB schema
+On PUT the worker sends back `workerForm`, `calculations`, `template`, and optionally `userForm`. The service merges these with the authoritative `id`, `sample_id`, and `template_id` from the existing context — those three fields cannot be changed after creation.
+
+`GET /api/experiments/{exp_id}` returns `**context` merged with the DB-level report columns (`report_status`, `report_r2_key`, `report_generated_at`, `created_at`).
+
+### Experiment template JSONB schema
 `experiment_templates.template` stores:
 ```json
 {
-  "userForm": { "title": "...", "description": "...", "questions": [ ... ] },
-  "workerForm": { "title": "...", "description": "...", "questions": [ ... ] },
-  "calculations": { "result_var": "js-style expression" },
-  "template": "Output string with {{result_var}} placeholders"
+  "userForm":    { "title": "...", "description": "...", "questions": [ ... ] },
+  "workerForm":  { "title": "...", "description": "...", "questions": [ ... ] },
+  "calculations": { "result_var": "Python expression" },
+  "template":    "Output string with {{result_var}} placeholders"
 }
 ```
 
-`userForm` is optional. `calculations` uses JavaScript syntax (evaluated by the frontend). `template` uses `{{variable}}` placeholders where variables come from `calculations` keys.
+`userForm` is optional. `calculations` values must be plain Python expressions (no JS syntax support) — evaluated server-side by `calculation_service`. `template` uses `{{variable}}` placeholders where variables come from `workerForm` question ids and `calculations` keys.
 
-Number questions support extra display fields passed through via `FormQuestion(extra="allow")`: `min`, `max`, `step`, `default`. The frontend uses these to render the input; the worker fills in `value` when submitting results.
+### Calculation engine (`app/services/calculation_service.py`)
+- `_extract_inputs(context)` — reads `workerForm.questions` and builds `{id: value_or_default}` for numeric inputs.
+- `_eval_calculations(inputs, calculations)` — evaluates each expression in order in a restricted namespace (`round`, `abs`, `min`, `max`, `math` module only). Expressions must be valid Python — write `round(x)` not `Math.round(x)`, `==` not `===`, `or` not `||`. Later expressions can reference earlier results. Raises 422 on: dunder access, division by zero, undefined variable, non-finite result, any other eval error.
+- `calculate(session, exp_id)` — orchestrates: load experiment → extract inputs → eval → write `calc_result` → commit → return updated experiment context.
 
 ### Conflict (409) responses
 - `POST /api/samples` — duplicate sample name
@@ -227,7 +245,7 @@ Maintained by the SQLAlchemy ORM via `onupdate=_now` — no DB triggers needed.
 3. Add a repository function if new DB access is needed. Repos return `None` for not-found, `flush()` only — services `commit()`.
 4. Add tests covering: happy path, 404, response shape.
 
-### New ExperimentTemplate
+### New experiment template
 1. Insert via `POST /api/samples/{sample_id}/experiments` or add a new seed file under `sql_mock/`.
 2. The JSONB must include `workerForm`, `calculations`, and `template`. `userForm` is optional.
 3. Do **not** edit past seed files — add a new numbered seed file instead.
@@ -255,6 +273,7 @@ Always set `sample.id` and/or `exp_id` as span attributes where applicable.
 - Tests require `TEST_DATA_SOURCE_NAME` in `.env`. If absent, all tests skip automatically.
 - Catalogue seed data is inserted once per session by `seed_catalogue`. Use the fixed IDs from `conftest.py` (`COAL_ID`, `PROXIMATE_TEMPLATE_ID`, etc.) in tests that need existing data.
 - Never manually commit test data — the rollback fixture handles cleanup.
+- Unit tests for pure functions (e.g. `calculation_service`) do not need the `client` fixture — import and call directly.
 
 ---
 
