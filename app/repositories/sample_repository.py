@@ -98,31 +98,6 @@ async def get_current_template_by_lineage(
     return result.scalar_one_or_none()
 
 
-async def get_template_by_id(
-    session: AsyncSession, template_id: uuid.UUID
-) -> ExperimentTemplate | None:
-    result = await session.execute(
-        select(ExperimentTemplate).where(
-            ExperimentTemplate.id == template_id,
-            ExperimentTemplate.deleted_at.is_(None),
-        )
-    )
-    return result.scalar_one_or_none()
-
-
-async def get_current_template_by_lineage_id(
-    session: AsyncSession, lineage_id: uuid.UUID
-) -> ExperimentTemplate | None:
-    result = await session.execute(
-        select(ExperimentTemplate).where(
-            ExperimentTemplate.lineage_id == lineage_id,
-            ExperimentTemplate.is_current.is_(True),
-            ExperimentTemplate.deleted_at.is_(None),
-        )
-    )
-    return result.scalar_one_or_none()
-
-
 async def get_templates_by_ids(
     session: AsyncSession,
     sample_type_id: uuid.UUID,

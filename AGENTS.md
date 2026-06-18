@@ -51,12 +51,12 @@ app/
     r2_client.py                         # upload_pdf, presign_download, check_connection (boto3)
   routers/
     samples.py                           # /api/samples — SampleType + ExperimentTemplate CRUD
-    experiments.py                       # /api/experiments — Experiment CRUD + calculate + upgrade-template
+    experiments.py                       # /api/experiments — Experiment CRUD + calculate
     reports.py                           # /api/experiments/{id}/report/generate|download
   services/
     sample_service.py                    # Business logic for samples and templates
-    experiment_service.py                # Business logic for experiments + report enqueue + upgrade-template
-    calculation_service.py               # JS→Python translation, safe eval, calculate()
+    experiment_service.py                # Business logic for experiments + report enqueue
+    calculation_service.py               # Safe Python eval, calculate()
   repositories/
     sample_repository.py                 # Async DB access for sample_types and experiment_templates
     experiment_repository.py             # Async DB access for experiments + report status updates
@@ -64,7 +64,7 @@ tests/
   conftest.py                            # Async fixtures — test engine, seed catalogue, per-test rollback client
   test_samples.py
   test_experiments.py
-  test_calculation_service.py            # Unit tests for _translate, _extract_inputs, _eval_calculations
+  test_calculation_service.py            # Unit tests for _extract_inputs, _eval_calculations
   test_calculate_endpoint.py             # Integration tests for POST /calculate
 ```
 
@@ -139,7 +139,6 @@ async def get_sample(sample_id: uuid.UUID, db: DbDep) -> SampleSummary:
 | `PUT` | `/api/experiments/{exp_id}` | Replace experiment context — send the whole JSON back with `value` added to each question |
 | `DELETE` | `/api/experiments/{exp_id}` | Soft delete |
 | `POST` | `/api/experiments/{exp_id}/calculate` | Evaluate `calculations` expressions against `workerForm` inputs → writes `calc_result` into experiment context → returns updated context |
-| `POST` | `/api/experiments/{exp_id}/upgrade-template` | Swap `template_id` in experiment context to the current version of the same lineage — use before generating a PDF when the experiment template has been updated since the experiment was created |
 
 **Reports**
 
@@ -162,7 +161,7 @@ PUT body — send the full context flat, with `"value"` added to each question:
       { "id": "sample_mass", "type": "number", "default": 1.0, "value": 1.023 }
     ]
   },
-  "calculations": { "gcv_cal_g": "Math.round((water_equivalent * temp_rise) / sample_mass)" },
+  "calculations": { "gcv_cal_g": "round((water_equivalent * temp_rise) / sample_mass)" },
   "template": "GCV = {{gcv_cal_g}} cal/g",
   "userForm": null
 }
@@ -185,7 +184,7 @@ Returns 409 if `exp_id` already exists.
   "description": "...",
   "userForm":    { "questions": [ ... ] },
   "workerForm":  { "questions": [ ... ] },
-  "calculations": { "result_var": "JS expression" },
+  "calculations": { "result_var": "Python expression" },
   "template":    "Output string with {{placeholders}}",
   "calc_result": { "result_var": 42.0 }
 }
@@ -194,7 +193,7 @@ Returns 409 if `exp_id` already exists.
 Field notes:
 - `id`, `sample_id`, `template_id` — frozen at creation; cannot be changed via PUT.
 - `workerForm.questions[].value` — filled in by the worker via PUT after measurement.
-- `calculations` — JS-style expressions referencing `workerForm` question ids as variables. Evaluated server-side by `POST /calculate`.
+- `calculations` — plain Python expressions referencing `workerForm` question ids as variables. Evaluated server-side by `POST /calculate`.
 - `calc_result` — written by `POST /calculate`. A dict of `{ expression_name: computed_float }`. Keys match `calculations` keys. Used by the PDF engine in place of the raw expressions. Absent until calculate is called.
 - `template` — output string with `{{placeholder}}` references; rendered by the PDF engine.
 
@@ -208,24 +207,17 @@ On PUT the worker sends back `workerForm`, `calculations`, `template`, and optio
 {
   "userForm":    { "title": "...", "description": "...", "questions": [ ... ] },
   "workerForm":  { "title": "...", "description": "...", "questions": [ ... ] },
-  "calculations": { "result_var": "JS-style expression" },
+  "calculations": { "result_var": "Python expression" },
   "template":    "Output string with {{result_var}} placeholders"
 }
 ```
 
-`userForm` is optional. `calculations` uses JavaScript-compatible syntax — evaluated server-side by `calculation_service`. `template` uses `{{variable}}` placeholders where variables come from `workerForm` question ids and `calculations` keys.
+`userForm` is optional. `calculations` values must be plain Python expressions (no JS syntax support) — evaluated server-side by `calculation_service`. `template` uses `{{variable}}` placeholders where variables come from `workerForm` question ids and `calculations` keys.
 
 ### Calculation engine (`app/services/calculation_service.py`)
-- `_translate(expr)` — converts JS syntax to Python: `Math.*` → `math.*` (catch-all), constants (`Math.PI` → `math.pi`), builtins (`Math.round` → `round`), operators (`===` → `==`, `||` → `or`), literals (`null` → `None`, `true` → `True`).
 - `_extract_inputs(context)` — reads `workerForm.questions` and builds `{id: value_or_default}` for numeric inputs.
-- `_eval_calculations(inputs, calculations)` — evaluates each expression in order in a restricted namespace (`round`, `abs`, `min`, `max`, `math` module only). Later expressions can reference earlier results. Raises 422 on: dunder access, division by zero, undefined variable, non-finite result, any other eval error.
+- `_eval_calculations(inputs, calculations)` — evaluates each expression in order in a restricted namespace (`round`, `abs`, `min`, `max`, `math` module only). Expressions must be valid Python — write `round(x)` not `Math.round(x)`, `==` not `===`, `or` not `||`. Later expressions can reference earlier results. Raises 422 on: dunder access, division by zero, undefined variable, non-finite result, any other eval error.
 - `calculate(session, exp_id)` — orchestrates: load experiment → extract inputs → eval → write `calc_result` → commit → return updated experiment context.
-
-### Template upgrade flow
-When an experiment template is edited after an experiment is created, the experiment context still points to the old `template_id` version. To generate a PDF with the updated PDF template:
-1. `POST /api/experiments/{exp_id}/upgrade-template` — updates `template_id` in the experiment context to the current version of the same lineage.
-2. `POST /api/experiments/{exp_id}/calculate` — re-runs calculations if needed.
-3. `POST /api/experiments/{exp_id}/report/generate` — generates PDF using the new template version.
 
 ### Conflict (409) responses
 - `POST /api/samples` — duplicate sample name

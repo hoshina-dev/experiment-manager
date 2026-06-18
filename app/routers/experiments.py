@@ -47,8 +47,3 @@ async def delete_experiment(exp_id: uuid.UUID, db: DbDep) -> None:
 @router.post("/{exp_id}/calculate", response_model=ExperimentDetail)
 async def calculate_experiment(exp_id: uuid.UUID, db: DbDep) -> ExperimentDetail:
     return await calc_service.calculate(db, exp_id)
-
-
-@router.post("/{exp_id}/upgrade-template", response_model=ExperimentDetail)
-async def upgrade_experiment_template(exp_id: uuid.UUID, db: DbDep) -> ExperimentDetail:
-    return await service.upgrade_template(db, exp_id)
