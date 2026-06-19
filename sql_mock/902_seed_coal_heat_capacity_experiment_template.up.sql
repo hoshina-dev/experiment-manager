@@ -130,4 +130,4 @@ SELECT st.id,
 }'::jsonb
 FROM sample_types st
 WHERE st.name = 'Coal'
-ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (sample_type_id, name) WHERE is_current = true AND deleted_at IS NULL DO NOTHING;
