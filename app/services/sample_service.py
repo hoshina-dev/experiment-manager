@@ -20,6 +20,17 @@ from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
 tracer = trace.get_tracer(__name__)
 
 
+def _template_jsonb(body: ExperimentTemplateCreate | ExperimentTemplateUpdate) -> dict:
+    return {
+        "clientForm": body.clientForm.model_dump(),
+        "labForm": body.labForm.model_dump(),
+        "calculations": {
+            name: calc.model_dump(exclude_none=True)
+            for name, calc in body.calculations.items()
+        },
+    }
+
+
 def _to_summary(t: ExperimentTemplate) -> ExperimentTemplateSummary:
     return ExperimentTemplateSummary(
         id=t.id,
@@ -154,7 +165,7 @@ async def create_experiment_template(
         span.set_attribute("sample.id", str(sample_id))
         if await repo.get_sample_type(session, sample_id) is None:
             raise HTTPException(404, f'Sample "{sample_id}" not found')
-        template_data = body.model_dump(exclude_none=True)
+        template_data = _template_jsonb(body)
         try:
             row = await repo.create_template(
                 session, sample_id, body.title, body.description, template_data
@@ -187,7 +198,7 @@ async def update_experiment_template(
         if current is None:
             raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
 
-        template_data = body.model_dump(exclude_none=True)
+        template_data = _template_jsonb(body)
         has_experiments = await experiment_repo.any_experiment_uses_template(
             session, current.id
         )
@@ -253,11 +264,15 @@ async def upsert_pdf_template(
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("lineage.id", str(lineage_id))
 
-        current = await repo.get_current_template_by_lineage(session, sample_id, lineage_id)
+        current = await repo.get_current_template_by_lineage(
+            session, sample_id, lineage_id
+        )
         if current is None:
             raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
 
-        has_experiments = await experiment_repo.any_experiment_uses_template(session, current.id)
+        has_experiments = await experiment_repo.any_experiment_uses_template(
+            session, current.id
+        )
 
         if has_experiments:
             new_row = await repo.create_new_template_version(
@@ -274,9 +289,13 @@ async def upsert_pdf_template(
             assert pdf is not None
         else:
             if current.pdf_template is None:
-                pdf = await repo.create_pdf_template(session, current.id, body.components)
+                pdf = await repo.create_pdf_template(
+                    session, current.id, body.components
+                )
             else:
-                pdf = await repo.update_pdf_template_in_place(session, current.id, body.components)
+                pdf = await repo.update_pdf_template_in_place(
+                    session, current.id, body.components
+                )
                 assert pdf is not None
 
         await session.commit()

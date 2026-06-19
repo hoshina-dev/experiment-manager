@@ -1,48 +1,29 @@
 import math
 import uuid
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.form_schema import (CALC_BUILTINS, apply_calculation_results,
+                             calculation_formulas, collect_values)
 from app.models import ExperimentDetail
 from app.repositories import experiment_repository as experiment_repo
 from app.services.experiment_service import _row_to_detail
 
-# ---------------------------------------------------------------------------
-# Input extraction
-# ---------------------------------------------------------------------------
-
-def _extract_inputs(state: dict) -> dict[str, object]:
-    worker_form = state.get("workerForm") or {}
-    questions = worker_form.get("questions", []) if isinstance(worker_form, dict) else []
-    inputs: dict[str, object] = {}
-    for q in questions:
-        q_id = q.get("id")
-        if q_id:
-            value = q.get("value", q.get("default"))
-            if value is not None:
-                inputs[q_id] = value
-    return inputs
-
-
-# ---------------------------------------------------------------------------
-# Evaluation
-# ---------------------------------------------------------------------------
-
-_SAFE_BUILTINS = {"round": round, "abs": abs, "min": min, "max": max, "math": math}
-
 
 def _eval_calculations(
-    inputs: dict[str, object], calculations: dict[str, str]
-) -> dict[str, object]:
-    namespace: dict[str, object] = {**_SAFE_BUILTINS, **inputs}
-    results: dict[str, object] = {}
+    values: dict[str, Any], formulas: dict[str, str]
+) -> dict[str, Any]:
+    namespace: dict[str, Any] = {**CALC_BUILTINS, "math": math, "values": values}
+    results: dict[str, Any] = {}
 
-    for name, expr in calculations.items():
+    for name, expr in formulas.items():
         if "__" in expr:
-            raise HTTPException(422, f"Invalid expression in '{name}': dunder access not allowed")
+            raise HTTPException(
+                422, f"Invalid expression in '{name}': dunder access not allowed"
+            )
         try:
-            # restricted namespace to prevent access to built-ins and globals; only allow specified functions and inputs
             value = eval(expr, {"__builtins__": {}}, namespace)  # noqa: S307
         except ZeroDivisionError:
             raise HTTPException(422, f"Division by zero in '{name}'")
@@ -60,21 +41,19 @@ def _eval_calculations(
     return results
 
 
-# ---------------------------------------------------------------------------
-# Service function
-# ---------------------------------------------------------------------------
-
 async def calculate(session: AsyncSession, exp_id: uuid.UUID) -> ExperimentDetail:
     row = await experiment_repo.get(session, exp_id)
     if row is None:
         raise HTTPException(404, f'Experiment "{exp_id}" not found')
 
-    inputs = _extract_inputs(row.state)
-    calculations: dict[str, str] = row.state.get("calculations") or {}
+    values = collect_values(row.state)
+    formulas = calculation_formulas(row.state.get("calculations"))
+    results = _eval_calculations(values, formulas)
 
-    calc_result = _eval_calculations(inputs, calculations)
+    calculations = apply_calculation_results(row.state.get("calculations"), results)
+    new_state = {**row.state, "values": values, "calculations": calculations}
+    new_state.pop("calc_result", None)
 
-    new_state = {**row.state, "calc_result": calc_result}
     row = await experiment_repo.update(session, exp_id, new_state)
     await session.commit()
 

@@ -30,18 +30,21 @@ class FormQuestion(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: str
+    type: str
     label: str
     description: str | None = None
     required: bool = False
-    type: str
-    options: list[dict[str, Any]] | None = None
-    placeholder: str | None = None
 
 
-class WorkerForm(BaseModel):
-    title: str | None = None
+class FormDoc(BaseModel):
+    title: str
     description: str | None = None
     questions: list[FormQuestion]
+
+
+class Calculation(BaseModel):
+    formula: str
+    result: Any = None
 
 
 class ExperimentTemplateSummary(BaseModel):
@@ -114,8 +117,11 @@ class SampleUpdate(BaseModel):
 _PROXIMATE_EXAMPLE: dict[str, Any] = {
     "title": "Proximate Analysis",
     "description": "Determine moisture, ash, volatile matter, and fixed carbon content",
-    "userForm": None,
-    "workerForm": {
+    "clientForm": {
+        "title": "Client Intake",
+        "questions": [],
+    },
+    "labForm": {
         "title": "Proximate Analysis Form",
         "description": "Record masses at each stage of the proximate analysis procedure.",
         "questions": [
@@ -124,63 +130,61 @@ _PROXIMATE_EXAMPLE: dict[str, Any] = {
                 "type": "number",
                 "label": "Crucible mass (g)",
                 "required": True,
-                "min": 0,
-                "max": 200,
-                "step": 0.001,
-                "default": 20.0,
+                "config": {"min": 0, "max": 200, "step": 0.001, "default": 20.0},
             },
             {
                 "id": "sample_mass",
                 "type": "number",
                 "label": "Sample mass (g)",
                 "required": True,
-                "min": 0,
-                "max": 10,
-                "step": 0.001,
-                "default": 1.0,
+                "config": {"min": 0, "max": 10, "step": 0.001, "default": 1.0},
             },
             {
                 "id": "mass_after_moisture",
                 "type": "number",
                 "label": "Mass after moisture drying at 105°C (g)",
                 "required": True,
-                "min": 0,
-                "max": 200,
-                "step": 0.001,
-                "default": 20.8,
+                "config": {"min": 0, "max": 200, "step": 0.001, "default": 20.8},
             },
             {
                 "id": "mass_after_volatile",
                 "type": "number",
                 "label": "Mass after volatile matter removal at 900°C (g)",
                 "required": True,
-                "min": 0,
-                "max": 200,
-                "step": 0.001,
-                "default": 20.5,
+                "config": {"min": 0, "max": 200, "step": 0.001, "default": 20.5},
             },
             {
                 "id": "mass_after_ash",
                 "type": "number",
                 "label": "Mass after ashing at 750°C (g)",
                 "required": True,
-                "min": 0,
-                "max": 200,
-                "step": 0.001,
-                "default": 20.1,
+                "config": {"min": 0, "max": 200, "step": 0.001, "default": 20.1},
             },
         ],
     },
     "calculations": {
-        "moisture_loss": "crucible_mass + sample_mass - mass_after_moisture",
-        "volatile_loss": "mass_after_moisture - mass_after_volatile",
-        "ash_mass": "mass_after_ash - crucible_mass",
-        "moisture_pct": "Math.round(1000 * moisture_loss / sample_mass) / 10",
-        "volatile_pct": "Math.round(1000 * volatile_loss / sample_mass) / 10",
-        "ash_pct": "Math.round(1000 * ash_mass / sample_mass) / 10",
-        "fixed_carbon_pct": "Math.round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10",
+        "moisture_loss": {
+            "formula": "values['crucible_mass'] + values['sample_mass'] - values['mass_after_moisture']",
+        },
+        "volatile_loss": {
+            "formula": "values['mass_after_moisture'] - values['mass_after_volatile']",
+        },
+        "ash_mass": {
+            "formula": "values['mass_after_ash'] - values['crucible_mass']",
+        },
+        "moisture_pct": {
+            "formula": "round(1000 * moisture_loss / values['sample_mass']) / 10",
+        },
+        "volatile_pct": {
+            "formula": "round(1000 * volatile_loss / values['sample_mass']) / 10",
+        },
+        "ash_pct": {
+            "formula": "round(1000 * ash_mass / values['sample_mass']) / 10",
+        },
+        "fixed_carbon_pct": {
+            "formula": "round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10",
+        },
     },
-    "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%",
 }
 
 
@@ -189,10 +193,9 @@ class ExperimentTemplateCreate(BaseModel):
 
     title: str
     description: str | None = None
-    userForm: dict | None = None
-    workerForm: WorkerForm
-    calculations: dict[str, str]
-    template: str
+    clientForm: FormDoc
+    labForm: FormDoc
+    calculations: dict[str, Calculation]
 
 
 class ExperimentTemplateUpdate(BaseModel):
@@ -200,10 +203,9 @@ class ExperimentTemplateUpdate(BaseModel):
 
     title: str
     description: str | None = None
-    userForm: dict | None = None
-    workerForm: WorkerForm
-    calculations: dict[str, str]
-    template: str
+    clientForm: FormDoc
+    labForm: FormDoc
+    calculations: dict[str, Calculation]
 
 
 # ---------------------------------------------------------------------------
@@ -229,78 +231,41 @@ class ExperimentCreate(BaseModel):
 
 _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
     "example": {
-        "workerForm": {
+        "clientForm": {
+            "title": "Client Intake",
+            "questions": [],
+        },
+        "labForm": {
             "title": "Proximate Analysis Form",
-            "description": "Record masses at each stage of the proximate analysis procedure.",
             "questions": [
                 {
                     "id": "crucible_mass",
                     "type": "number",
                     "label": "Crucible mass (g)",
                     "required": True,
-                    "min": 0,
-                    "max": 200,
-                    "step": 0.001,
-                    "default": 20.0,
-                    "value": 21.354,
+                    "config": {"min": 0, "max": 200, "step": 0.001, "default": 20.0},
                 },
                 {
                     "id": "sample_mass",
                     "type": "number",
                     "label": "Sample mass (g)",
                     "required": True,
-                    "min": 0,
-                    "max": 10,
-                    "step": 0.001,
-                    "default": 1.0,
-                    "value": 1.001,
-                },
-                {
-                    "id": "mass_after_moisture",
-                    "type": "number",
-                    "label": "Mass after moisture drying at 105°C (g)",
-                    "required": True,
-                    "min": 0,
-                    "max": 200,
-                    "step": 0.001,
-                    "default": 20.8,
-                    "value": 22.247,
-                },
-                {
-                    "id": "mass_after_volatile",
-                    "type": "number",
-                    "label": "Mass after volatile matter removal at 900°C (g)",
-                    "required": True,
-                    "min": 0,
-                    "max": 200,
-                    "step": 0.001,
-                    "default": 20.5,
-                    "value": 21.891,
-                },
-                {
-                    "id": "mass_after_ash",
-                    "type": "number",
-                    "label": "Mass after ashing at 750°C (g)",
-                    "required": True,
-                    "min": 0,
-                    "max": 200,
-                    "step": 0.001,
-                    "default": 20.1,
-                    "value": 21.501,
+                    "config": {"min": 0, "max": 10, "step": 0.001, "default": 1.0},
                 },
             ],
         },
         "calculations": {
-            "moisture_loss": "crucible_mass + sample_mass - mass_after_moisture",
-            "volatile_loss": "mass_after_moisture - mass_after_volatile",
-            "ash_mass": "mass_after_ash - crucible_mass",
-            "moisture_pct": "Math.round(1000 * moisture_loss / sample_mass) / 10",
-            "volatile_pct": "Math.round(1000 * volatile_loss / sample_mass) / 10",
-            "ash_pct": "Math.round(1000 * ash_mass / sample_mass) / 10",
-            "fixed_carbon_pct": "Math.round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10",
+            "moisture_loss": {
+                "formula": "values['crucible_mass'] + values['sample_mass'] - values['mass_after_moisture']",
+            },
         },
-        "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%",
-        "userForm": None,
+        "values": {
+            "crucible_mass": 21.354,
+            "sample_mass": 1.001,
+            "mass_after_moisture": 22.247,
+            "mass_after_volatile": 21.891,
+            "mass_after_ash": 21.501,
+        },
     }
 }
 
@@ -308,10 +273,10 @@ _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
 class ExperimentUpdate(BaseModel):
     model_config = ConfigDict(json_schema_extra=_EXPERIMENT_UPDATE_EXAMPLE)
 
-    workerForm: WorkerForm
-    calculations: dict[str, str]
-    template: str
-    userForm: dict | None = None
+    clientForm: FormDoc
+    labForm: FormDoc
+    calculations: dict[str, Calculation]
+    values: dict[str, Any] = Field(default_factory=dict)
 
 
 class ExperimentSummary(BaseModel):

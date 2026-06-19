@@ -15,7 +15,7 @@ Key concepts:
 | Term | Meaning |
 |---|---|
 | **SampleType** | A category of material being analysed (e.g. Coal, Tomato, Environment Water) |
-| **Experiment template** | A specific analysis that can be run on a sample type — contains `workerForm`, `calculations`, and output `template`. `userForm` is optional. |
+| **Experiment template** | A specific analysis that can be run on a sample type — contains `clientForm`, `labForm`, and `calculations`. Template `name`/`description` live in DB columns, not inside the JSONB blob. |
 | **Experiment context** | The full JSON blob stored per experiment instance (`experiments.state`). Created from the experiment template at experiment creation time; updated by the worker via PUT. Always refer to this as "experiment context", never "experiment state" or "experiment JSON". |
 | **Experiment** | One instance of an analysis in progress. `id` is supplied by the Ticketing Service (1 exp_id per analysis selected). Stores the experiment context at creation time. The worker embeds measured values directly into the context via PUT. |
 
@@ -138,7 +138,7 @@ async def get_sample(sample_id: uuid.UUID, db: DbDep) -> SampleSummary:
 | `GET` | `/api/experiments/{exp_id}` | Full experiment context |
 | `PUT` | `/api/experiments/{exp_id}` | Replace experiment context — send the whole JSON back with `value` added to each question |
 | `DELETE` | `/api/experiments/{exp_id}` | Soft delete |
-| `POST` | `/api/experiments/{exp_id}/calculate` | Evaluate `calculations` expressions against `workerForm` inputs → writes `calc_result` into experiment context → returns updated context |
+| `POST` | `/api/experiments/{exp_id}/calculate` | Evaluate `calculations` formulas against `values` → writes `result` on each calculation → returns updated context |
 
 **Reports**
 
@@ -153,17 +153,13 @@ POST `/api/experiments` body:
 ```
 `lineage_id` identifies the experiment template concept; the server resolves it to the current version id and freezes it into the experiment context.
 
-PUT body — send the full context flat, with `"value"` added to each question:
+PUT body — send clientForm, labForm, calculations, and values:
 ```json
 {
-  "workerForm": {
-    "questions": [
-      { "id": "sample_mass", "type": "number", "default": 1.0, "value": 1.023 }
-    ]
-  },
-  "calculations": { "gcv_cal_g": "round((water_equivalent * temp_rise) / sample_mass)" },
-  "template": "GCV = {{gcv_cal_g}} cal/g",
-  "userForm": null
+  "clientForm": { "title": "...", "questions": [ ... ] },
+  "labForm": { "title": "...", "questions": [ ... ] },
+  "calculations": { "gcv_cal_g": { "formula": "round((values['water_equivalent'] * values['temp_rise']) / values['sample_mass'])" } },
+  "values": { "sample_mass": 1.023, "temp_rise": 2.5 }
 }
 ```
 
@@ -174,30 +170,29 @@ Returns 409 if `exp_id` already exists.
 ## Data model notes
 
 ### Experiment context (JSONB)
-`experiments.state` stores the **experiment context** — a flat JSON dict. At creation it is initialised from the experiment template and looks like:
+`experiments.state` stores the **experiment context**. At creation it is initialised from the experiment template and looks like:
 ```json
 {
-  "id":          "exp-uuid",
-  "sample_id":   "uuid",
-  "template_id": "uuid",
-  "title":       "Proximate Analysis",
-  "description": "...",
-  "userForm":    { "questions": [ ... ] },
-  "workerForm":  { "questions": [ ... ] },
-  "calculations": { "result_var": "Python expression" },
-  "template":    "Output string with {{placeholders}}",
-  "calc_result": { "result_var": 42.0 }
+  "id":           "exp-uuid",
+  "sample_id":    "uuid",
+  "template_id":  "uuid",
+  "lineage_id":   "uuid",
+  "name":         "Proximate Analysis",
+  "description":  "...",
+  "clientForm":   { "title": "...", "questions": [ ... ] },
+  "labForm":      { "title": "...", "questions": [ ... ] },
+  "calculations": { "result_var": { "formula": "...", "result": 42.0 } },
+  "values":       { "sample_mass": 1.023 }
 }
 ```
 
 Field notes:
-- `id`, `sample_id`, `template_id` — frozen at creation; cannot be changed via PUT.
-- `workerForm.questions[].value` — filled in by the worker via PUT after measurement.
-- `calculations` — plain Python expressions referencing `workerForm` question ids as variables. Evaluated server-side by `POST /calculate`.
-- `calc_result` — written by `POST /calculate`. A dict of `{ expression_name: computed_float }`. Keys match `calculations` keys. Used by the PDF engine in place of the raw expressions. Absent until calculate is called.
-- `template` — output string with `{{placeholder}}` references; rendered by the PDF engine.
+- `id`, `sample_id`, `template_id`, `lineage_id`, `name`, `description` — frozen at creation; cannot be changed via PUT.
+- `values` — collected answers keyed by question id; filled in by the worker via PUT.
+- `calculations` — `{ formula, result? }` objects. Formulas use `values['question_id']`. Evaluated server-side by `POST /calculate`, which writes `result`.
+- Question options nest under `config`; answers never live on question objects.
 
-On PUT the worker sends back `workerForm`, `calculations`, `template`, and optionally `userForm`. The service merges these with the authoritative `id`, `sample_id`, and `template_id` from the existing context — those three fields cannot be changed after creation.
+On PUT the worker sends back `clientForm`, `labForm`, `calculations`, and `values`. The service merges these with the authoritative frozen fields from the existing context.
 
 `GET /api/experiments/{exp_id}` returns `**context` merged with the DB-level report columns (`report_status`, `report_r2_key`, `report_generated_at`, `created_at`).
 
@@ -205,19 +200,18 @@ On PUT the worker sends back `workerForm`, `calculations`, `template`, and optio
 `experiment_templates.template` stores:
 ```json
 {
-  "userForm":    { "title": "...", "description": "...", "questions": [ ... ] },
-  "workerForm":  { "title": "...", "description": "...", "questions": [ ... ] },
-  "calculations": { "result_var": "Python expression" },
-  "template":    "Output string with {{result_var}} placeholders"
+  "clientForm":   { "title": "...", "description": "...", "questions": [ ... ] },
+  "labForm":      { "title": "...", "description": "...", "questions": [ ... ] },
+  "calculations": { "result_var": { "formula": "Python expression" } }
 }
 ```
 
-`userForm` is optional. `calculations` values must be plain Python expressions (no JS syntax support) — evaluated server-side by `calculation_service`. `template` uses `{{variable}}` placeholders where variables come from `workerForm` question ids and `calculations` keys.
+Template `name`/`description` are DB columns only — not duplicated inside the JSONB blob. Aligned with `form-poc/schema-bundle/experiment-template.schema.json`.
 
 ### Calculation engine (`app/services/calculation_service.py`)
-- `_extract_inputs(context)` — reads `workerForm.questions` and builds `{id: value_or_default}` for numeric inputs.
-- `_eval_calculations(inputs, calculations)` — evaluates each expression in order in a restricted namespace (`round`, `abs`, `min`, `max`, `math` module only). Expressions must be valid Python — write `round(x)` not `Math.round(x)`, `==` not `===`, `or` not `||`. Later expressions can reference earlier results. Raises 422 on: dunder access, division by zero, undefined variable, non-finite result, any other eval error.
-- `calculate(session, exp_id)` — orchestrates: load experiment → extract inputs → eval → write `calc_result` → commit → return updated experiment context.
+- `collect_values(context)` — merges `values` with `config.default` from clientForm/labForm questions.
+- `_eval_calculations(values, formulas)` — evaluates each formula in order in a restricted namespace (`round`, `abs`, `min`, `max`, `sum`, `len`, `mean`, `median`, `stdev`, `math`, plus `values` dict). Later expressions can reference earlier results.
+- `calculate(session, exp_id)` — orchestrates: load experiment → collect values → eval → write `calculations[].result` → commit → return updated experiment context.
 
 ### Conflict (409) responses
 - `POST /api/samples` — duplicate sample name
@@ -247,7 +241,7 @@ Maintained by the SQLAlchemy ORM via `onupdate=_now` — no DB triggers needed.
 
 ### New experiment template
 1. Insert via `POST /api/samples/{sample_id}/experiments` or add a new seed file under `sql_mock/`.
-2. The JSONB must include `workerForm`, `calculations`, and `template`. `userForm` is optional.
+2. The JSONB must include `clientForm`, `labForm`, and `calculations`. Question options nest under `config`.
 3. Do **not** edit past seed files — add a new numbered seed file instead.
 4. Add tests asserting the template appears in `GET .../experiments`.
 

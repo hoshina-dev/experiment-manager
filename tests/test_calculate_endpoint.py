@@ -16,25 +16,23 @@ _CREATE_BODY = {
 }
 
 
-async def test_calculate_returns_200_with_calc_result(client: AsyncClient):
+async def test_calculate_returns_200_with_results(client: AsyncClient):
     await client.post("/api/experiments", json=_CREATE_BODY)
     await client.put(
         f"/api/experiments/{_EXP_ID}",
         json={
-            "workerForm": {
-                "title": "Form",
-                "questions": [{"id": "value", "type": "number", "label": "Value", "value": 5}],
+            "clientForm": {"title": "Client", "questions": []},
+            "labForm": {"title": "Form", "questions": []},
+            "calculations": {
+                "result": {"formula": "values['value'] * 100", "result": ""},
             },
-            "calculations": {"result": "value * 100"},
-            "template": "Result: {{result}}%",
-            "userForm": None,
+            "values": {"value": 5},
         },
     )
     response = await client.post(f"/api/experiments/{_EXP_ID}/calculate")
     assert response.status_code == 200
     body = response.json()
-    assert "calc_result" in body
-    assert body["calc_result"] == {"result": 500.0}
+    assert body["calculations"]["result"]["result"] == 500.0
 
 
 async def test_calculate_result_persisted_in_state(client: AsyncClient):
@@ -42,18 +40,17 @@ async def test_calculate_result_persisted_in_state(client: AsyncClient):
     await client.put(
         f"/api/experiments/{_EXP_ID}",
         json={
-            "workerForm": {
-                "title": "Form",
-                "questions": [{"id": "value", "type": "number", "label": "Value", "value": 2}],
+            "clientForm": {"title": "Client", "questions": []},
+            "labForm": {"title": "Form", "questions": []},
+            "calculations": {
+                "result": {"formula": "values['value'] * 100", "result": ""},
             },
-            "calculations": {"result": "value * 100"},
-            "template": "Result: {{result}}%",
-            "userForm": None,
+            "values": {"value": 2},
         },
     )
     await client.post(f"/api/experiments/{_EXP_ID}/calculate")
     get_response = await client.get(f"/api/experiments/{_EXP_ID}")
-    assert get_response.json()["calc_result"] == {"result": 200.0}
+    assert get_response.json()["calculations"]["result"]["result"] == 200.0
 
 
 async def test_calculate_unknown_exp_returns_404(client: AsyncClient):
@@ -62,17 +59,18 @@ async def test_calculate_unknown_exp_returns_404(client: AsyncClient):
 
 
 async def test_calculate_division_by_zero_returns_422(client: AsyncClient):
-    await client.post("/api/experiments", json={**_CREATE_BODY, "exp_id": str(_EXP_ID_2)})
+    await client.post(
+        "/api/experiments", json={**_CREATE_BODY, "exp_id": str(_EXP_ID_2)}
+    )
     await client.put(
         f"/api/experiments/{_EXP_ID_2}",
         json={
-            "workerForm": {
-                "title": "Form",
-                "questions": [{"id": "value", "type": "number", "label": "Value", "value": 0}],
+            "clientForm": {"title": "Client", "questions": []},
+            "labForm": {"title": "Form", "questions": []},
+            "calculations": {
+                "bad": {"formula": "1 / values['value']", "result": ""},
             },
-            "calculations": {"bad": "1 / value"},
-            "template": "Bad: {{bad}}",
-            "userForm": None,
+            "values": {"value": 0},
         },
     )
     response = await client.post(f"/api/experiments/{_EXP_ID_2}/calculate")

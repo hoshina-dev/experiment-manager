@@ -59,13 +59,17 @@ psql $DATABASE_URL -f migrations/006_experiment_templates_lineage_id_default.up.
 psql $DATABASE_URL -f migrations/007_drop_stale_template_name_index.up.sql
 psql $DATABASE_URL -f sql_mock/900_seed_samples.up.sql
 psql $DATABASE_URL -f sql_mock/901_seed_experiment_templates.up.sql
-psql $DATABASE_URL -f sql_mock/902_seed_heat_capacity_template.up.sql
+psql $DATABASE_URL -f sql_mock/902_seed_coal_heat_capacity_experiment_template.up.sql
 psql $DATABASE_URL -f sql_mock/903_seed_coal_calorific_value_experiment_template.up.sql
 psql $DATABASE_URL -f sql_mock/904_seed_coal_heat_capacity_pdf_template.up.sql
 psql $DATABASE_URL -f sql_mock/905_seed_coal_calorific_value_pdf_template.up.sql
 psql $DATABASE_URL -f sql_mock/906_seed_coal_heat_capacity_experiment.up.sql
 psql $DATABASE_URL -f sql_mock/907_seed_coal_calorific_value_experiment.up.sql
+psql $DATABASE_URL -f sql_mock/908_seed_tomato_analysis_experiment_template.up.sql
+psql $DATABASE_URL -f sql_mock/909_seed_tomato_analysis_pdf_template.up.sql
 ```
+
+Template JSON in `sql_mock/` follows the form-poc schema-bundle: `clientForm`, `labForm`, `calculations` (with `{ formula, result? }`), nested question `config`. Experiment snapshots add top-level `values` and metadata (`name`, `description` from DB columns).
 
 ### 4. Run the server
 
@@ -134,15 +138,16 @@ An experiment's state is a flat JSON blob stored in Postgres. At creation it mir
   "id": "exp-uuid",
   "sample_id": "uuid",
   "template_id": "uuid",
-  "title": "Heat Capacity Analysis",
+  "name": "Heat Capacity Analysis",
   "description": "...",
-  "workerForm": { "title": "...", "questions": [ ... ] },
-  "calculations": { "delta_T": "temperature_final - temperature_initial" },
-  "template": "ΔT = {{delta_T}} °C"
+  "clientForm": { "title": "...", "questions": [ ... ] },
+  "labForm": { "title": "...", "questions": [ ... ] },
+  "calculations": { "delta_T": { "formula": "values['temperature_final'] - values['temperature_initial']" } },
+  "values": { "temperature_final": 30.17, "temperature_initial": 24.82 }
 }
 ```
 
-On `PUT` the worker sends the same blob back with `"value"` filled into each question. `id`, `sample_id`, and `template_id` are immutable — the service ignores any values the client sends for those fields.
+On `PUT` the worker sends `clientForm`, `labForm`, `calculations`, and `values`. Frozen metadata (`id`, `sample_id`, `template_id`, `lineage_id`, `name`, `description`) is preserved server-side.
 
 `GET /api/experiments/{exp_id}` returns this blob merged with report tracking fields: `report_status`, `report_r2_key`, `report_generated_at`, `created_at`.
 

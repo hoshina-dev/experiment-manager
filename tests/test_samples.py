@@ -11,9 +11,11 @@ _NEW_SAMPLE = {"name": "Test Sample", "description": "For testing"}
 _NEW_EXPERIMENT_TEMPLATE = {
     "title": "Test Analysis",
     "description": "A test analysis",
-    "workerForm": {"title": "Test Form", "questions": []},
-    "calculations": {"x": "a + b"},
-    "template": "Result: {{x}}",
+    "clientForm": {"title": "Client", "questions": []},
+    "labForm": {"title": "Test Form", "questions": []},
+    "calculations": {
+        "x": {"formula": "values['a'] + values['b']", "result": ""},
+    },
 }
 
 

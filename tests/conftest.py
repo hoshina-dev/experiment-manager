@@ -63,10 +63,14 @@ async def seed_catalogue(test_engine):
                     version=1,
                     is_current=True,
                     template={
-                        "title": "Proximate Analysis",
-                        "workerForm": {"title": "Proximate Form", "questions": []},
-                        "calculations": {"result": "value * 100"},
-                        "template": "Result: {{result}}%",
+                        "clientForm": {"title": "Client", "questions": []},
+                        "labForm": {"title": "Proximate Form", "questions": []},
+                        "calculations": {
+                            "result": {
+                                "formula": "values['value'] * 100",
+                                "result": "",
+                            }
+                        },
                     },
                 ),
                 ExperimentTemplate(
@@ -78,10 +82,14 @@ async def seed_catalogue(test_engine):
                     version=1,
                     is_current=True,
                     template={
-                        "title": "Calorific Value",
-                        "workerForm": {"title": "Calorific Form", "questions": []},
-                        "calculations": {"gcv": "value * 4.1868"},
-                        "template": "GCV: {{gcv}} kJ/kg",
+                        "clientForm": {"title": "Client", "questions": []},
+                        "labForm": {"title": "Calorific Form", "questions": []},
+                        "calculations": {
+                            "gcv": {
+                                "formula": "values['value'] * 4.1868",
+                                "result": "",
+                            }
+                        },
                     },
                 ),
             ]
