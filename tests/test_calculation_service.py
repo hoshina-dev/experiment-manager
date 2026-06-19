@@ -40,6 +40,47 @@ def test_eval_list_aggregation() -> None:
     assert result["avg"] == 11.0
 
 
+def test_eval_repeatable_measurements_formulas() -> None:
+    values = {
+        "sample_id": "SMP-2026-0042",
+        "reading_a": [10.12, 10.08, 9.97, 10.21, 10.05, 9.94, 10.15, 10.03],
+        "reading_b": [10.10, 10.11, 10.00, 10.18, 10.02, 9.98, 10.12, 10.06],
+    }
+    formulas = {
+        "n_measurements": "len(values['reading_a'])",
+        "precision": "[round(abs(a - b) / ((a + b) / 2) * 100, 3) for a, b in zip(values['reading_a'], values['reading_b'])]",
+        "avg_reading_a": "round(mean(values['reading_a']), 3)",
+        "avg_reading_b": "round(mean(values['reading_b']), 3)",
+        "avg_precision": "round(mean(precision), 3)",
+        "best_precision": "min(precision)",
+        "worst_precision": "max(precision)",
+        "within_spec": "mean(precision) <= 0.5",
+        "run_summary": "f\"{values['sample_id']}: {len(values['reading_a'])} reads, A avg {avg_reading_a} mg / B avg {avg_reading_b} mg, avg precision {avg_precision}%\"",
+    }
+    result = _eval_calculations(values, formulas)
+    assert result["n_measurements"] == 8
+    assert result["precision"] == [
+        0.198,
+        0.297,
+        0.3,
+        0.294,
+        0.299,
+        0.402,
+        0.296,
+        0.299,
+    ]
+    assert result["avg_reading_a"] == 10.069
+    assert result["avg_reading_b"] == 10.071
+    assert result["avg_precision"] == 0.298
+    assert result["best_precision"] == 0.198
+    assert result["worst_precision"] == 0.402
+    assert result["within_spec"] is True
+    assert (
+        result["run_summary"]
+        == "SMP-2026-0042: 8 reads, A avg 10.069 mg / B avg 10.071 mg, avg precision 0.298%"
+    )
+
+
 def test_eval_raises_422_on_division_by_zero() -> None:
     with pytest.raises(HTTPException) as exc_info:
         _eval_calculations({"b": 0}, {"r": "1 / values['b']"})

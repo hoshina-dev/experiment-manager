@@ -101,6 +101,7 @@ CALC_BUILTINS: dict[str, Any] = {
     "max": max,
     "sum": sum,
     "len": len,
+    "zip": zip,
     "mean": statistics.mean,
     "median": statistics.median,
     "stdev": statistics.stdev,
