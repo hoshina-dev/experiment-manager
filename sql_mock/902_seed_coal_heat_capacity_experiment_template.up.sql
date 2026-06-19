@@ -3,9 +3,7 @@ SELECT st.id,
        'Heat Capacity Analysis',
        'Bomb-calorimeter determination of specific and molar heat capacity',
        '{
-  "title": "Heat Capacity Analysis",
-  "description": "Bomb-calorimeter determination of specific and molar heat capacity",
-  "userForm": {
+  "clientForm": {
     "title": "Sample Information",
     "description": "Details of the specimen submitted for analysis.",
     "questions": [
@@ -65,7 +63,7 @@ SELECT st.id,
       }
     ]
   },
-  "workerForm": {
+  "labForm": {
     "title": "Analyst Details",
     "description": "Completed by the laboratory analyst after measurement.",
     "questions": [
@@ -112,12 +110,23 @@ SELECT st.id,
     ]
   },
   "calculations": {
-    "delta_T": "temperature_final - temperature_initial",
-    "heat_released": "round(calorimeter_constant * delta_T * 100) / 100",
-    "specific_heat": "round(heat_released / sample_mass * 10) / 10",
-    "molar_heat_capacity": "round(specific_heat * 12.011 * 10) / 10"
-  },
-  "template": "Sample {{sample_id}} — {{sample_source}} — was analysed on {{analysis_date}} by {{analyst_name}} ({{lab_id}}) using a {{instrument}} following {{method_ref}}.\n\nA specimen of {{sample_mass}} g was combusted under pure oxygen. Temperature rose from {{temperature_initial}} °C to {{temperature_final}} °C, giving ΔT = {{delta_T}} °C. Applying the calorimeter constant of {{calorimeter_constant}} J/°C:\n\n  Q = C × ΔT = {{calorimeter_constant}} × {{delta_T}} = {{heat_released}} J\n\nSpecific heat capacity = Q / m = {{specific_heat}} J/g\nMolar heat capacity (M = 12.011 g/mol) = {{molar_heat_capacity}} J/mol"
+    "delta_T": {
+      "formula": "values[''temperature_final''] - values[''temperature_initial'']",
+      "result": ""
+    },
+    "heat_released": {
+      "formula": "round(values[''calorimeter_constant''] * delta_T * 100) / 100",
+      "result": ""
+    },
+    "specific_heat": {
+      "formula": "round(heat_released / values[''sample_mass''] * 10) / 10",
+      "result": ""
+    },
+    "molar_heat_capacity": {
+      "formula": "round(specific_heat * 12.011 * 10) / 10",
+      "result": ""
+    }
+  }
 }'::jsonb
 FROM sample_types st
 WHERE st.name = 'Coal'

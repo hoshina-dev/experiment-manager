@@ -44,7 +44,7 @@ Any string field in a component can contain `{{field_name}}` placeholders. The e
 For the full list of available variables and how the render context is built, see `docs/experiment-context.md`.
 
 **Key rules:**
-- `calc_result` values override `calculations` values for the same key — `{{my_var}}` renders the computed number after `POST /calculate` is called, and the raw JS expression before.
+- `calculations[name].result` is used for the same key when present — `{{my_var}}` renders the computed value after `POST /calculate` is called, and the formula string before.
 - Unresolved `{{field}}` placeholders are left as-is in the output — no crash.
 - Lists (multi-select, checkbox-group, tags) are skipped and cannot be used in placeholders.
 - Always call `POST /calculate` before generating a PDF if the experiment template uses `calculations`.

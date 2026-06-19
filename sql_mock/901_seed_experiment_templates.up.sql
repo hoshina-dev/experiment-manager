@@ -1,7 +1,7 @@
 INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Proximate Analysis', 'Determine moisture, ash, volatile matter, and fixed carbon content',
 '{
-  "userForm": {
+  "clientForm": {
     "title": "Select Analyses",
     "description": "Choose which analyses are required for this coal submission.",
     "questions": [
@@ -32,7 +32,7 @@ SELECT id, 'Proximate Analysis', 'Determine moisture, ash, volatile matter, and 
       }
     ]
   },
-  "workerForm": {
+  "labForm": {
     "title": "Proximate Analysis Form",
     "description": "Record masses at each stage of the proximate analysis procedure.",
     "questions": [
@@ -99,15 +99,35 @@ SELECT id, 'Proximate Analysis', 'Determine moisture, ash, volatile matter, and 
     ]
   },
   "calculations": {
-    "moisture_loss": "crucible_mass + sample_mass - mass_after_moisture",
-    "volatile_loss": "mass_after_moisture - mass_after_volatile",
-    "ash_mass": "mass_after_ash - crucible_mass",
-    "moisture_pct": "round(1000 * moisture_loss / sample_mass) / 10",
-    "volatile_pct": "round(1000 * volatile_loss / sample_mass) / 10",
-    "ash_pct": "round(1000 * ash_mass / sample_mass) / 10",
-    "fixed_carbon_pct": "round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10"
-  },
-  "template": "Moisture = {{moisture_pct}}% | Volatile Matter = {{volatile_pct}}% | Ash = {{ash_pct}}% | Fixed Carbon = {{fixed_carbon_pct}}%"
+    "moisture_loss": {
+      "formula": "values[''crucible_mass''] + values[''sample_mass''] - values[''mass_after_moisture'']",
+      "result": ""
+    },
+    "volatile_loss": {
+      "formula": "values[''mass_after_moisture''] - values[''mass_after_volatile'']",
+      "result": ""
+    },
+    "ash_mass": {
+      "formula": "values[''mass_after_ash''] - values[''crucible_mass'']",
+      "result": ""
+    },
+    "moisture_pct": {
+      "formula": "round(1000 * moisture_loss / values[''sample_mass'']) / 10",
+      "result": ""
+    },
+    "volatile_pct": {
+      "formula": "round(1000 * volatile_loss / values[''sample_mass'']) / 10",
+      "result": ""
+    },
+    "ash_pct": {
+      "formula": "round(1000 * ash_mass / values[''sample_mass'']) / 10",
+      "result": ""
+    },
+    "fixed_carbon_pct": {
+      "formula": "round(10 * (100 - moisture_pct - volatile_pct - ash_pct)) / 10",
+      "result": ""
+    }
+  }
 }'::jsonb
 FROM sample_types WHERE name = 'Coal'
 ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
@@ -117,7 +137,7 @@ ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Calorific Value (GCV)', 'Determine gross calorific value by bomb calorimetry',
 '{
-  "userForm": {
+  "clientForm": {
     "title": "Select Analyses",
     "description": "Choose which analyses are required for this coal submission.",
     "questions": [
@@ -148,7 +168,7 @@ SELECT id, 'Calorific Value (GCV)', 'Determine gross calorific value by bomb cal
       }
     ]
   },
-  "workerForm": {
+  "labForm": {
     "title": "Calorific Value Form",
     "description": "Record bomb calorimeter readings.",
     "questions": [
@@ -203,11 +223,19 @@ SELECT id, 'Calorific Value (GCV)', 'Determine gross calorific value by bomb cal
     ]
   },
   "calculations": {
-    "fuse_corr": "fuse_correction or 0",
-    "gcv_cal_g": "round((water_equivalent * temp_rise - fuse_corr) / sample_mass)",
-    "gcv_kj_kg": "round(gcv_cal_g * 4.1868)"
-  },
-  "template": "GCV = {{gcv_cal_g}} cal/g ({{gcv_kj_kg}} kJ/kg)"
+    "fuse_corr": {
+      "formula": "values[''fuse_correction''] or 0",
+      "result": ""
+    },
+    "gcv_cal_g": {
+      "formula": "round((values[''water_equivalent''] * values[''temp_rise''] - fuse_corr) / values[''sample_mass''])",
+      "result": ""
+    },
+    "gcv_kj_kg": {
+      "formula": "round(gcv_cal_g * 4.1868)",
+      "result": ""
+    }
+  }
 }'::jsonb
 FROM sample_types WHERE name = 'Coal'
 ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
@@ -217,7 +245,7 @@ ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Sulfur Content Analysis', 'Determine total sulfur content by titrimetric method',
 '{
-  "userForm": {
+  "clientForm": {
     "title": "Select Analyses",
     "description": "Choose which analyses are required for this coal submission.",
     "questions": [
@@ -248,7 +276,7 @@ SELECT id, 'Sulfur Content Analysis', 'Determine total sulfur content by titrime
       }
     ]
   },
-  "workerForm": {
+  "labForm": {
     "title": "Sulfur Analysis Form",
     "description": "Record sample mass and titration volumes.",
     "questions": [
@@ -303,10 +331,15 @@ SELECT id, 'Sulfur Content Analysis', 'Determine total sulfur content by titrime
     ]
   },
   "calculations": {
-    "net_volume": "titrant_volume - blank_volume",
-    "sulfur_pct": "round(10000 * (net_volume * normality * 1.603) / sample_mass) / 100"
-  },
-  "template": "Sulfur content = {{sulfur_pct}}%"
+    "net_volume": {
+      "formula": "values[''titrant_volume''] - values[''blank_volume'']",
+      "result": ""
+    },
+    "sulfur_pct": {
+      "formula": "round(10000 * (net_volume * values[''normality''] * 1.603) / values[''sample_mass'']) / 100",
+      "result": ""
+    }
+  }
 }'::jsonb
 FROM sample_types WHERE name = 'Coal'
 ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
@@ -320,7 +353,7 @@ ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Moisture Analysis', 'Determine moisture content by drying method',
 '{
-  "userForm": {
+  "clientForm": {
     "title": "Select Analyses",
     "description": "Choose which analyses are required for this tomato submission.",
     "questions": [
@@ -342,7 +375,7 @@ SELECT id, 'Moisture Analysis', 'Determine moisture content by drying method',
       }
     ]
   },
-  "workerForm": {
+  "labForm": {
     "title": "Moisture Analysis Form",
     "description": "Record tray and sample masses before and after drying.",
     "questions": [
@@ -397,11 +430,19 @@ SELECT id, 'Moisture Analysis', 'Determine moisture content by drying method',
     ]
   },
   "calculations": {
-    "sample_mass": "tray_sam - tray_mass",
-    "sample_error": "tray_sam - tray_ctrl",
-    "moisture_pct": "round(1000 * (sample_error / sample_mass)) / 10"
-  },
-  "template": "Moisture content = {{moisture_pct}}%"
+    "sample_mass": {
+      "formula": "values[''tray_sam''] - values[''tray_mass'']",
+      "result": ""
+    },
+    "sample_error": {
+      "formula": "values[''tray_sam''] - values[''tray_ctrl'']",
+      "result": ""
+    },
+    "moisture_pct": {
+      "formula": "round(1000 * (sample_error / sample_mass)) / 10",
+      "result": ""
+    }
+  }
 }'::jsonb
 FROM sample_types WHERE name = 'Tomato'
 ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
@@ -415,7 +456,7 @@ ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'pH Measurement', 'Measure hydrogen ion concentration in water sample',
 '{
-  "userForm": {
+  "clientForm": {
     "title": "Select Analyses",
     "description": "Choose which analyses are required for this water submission.",
     "questions": [
@@ -442,7 +483,7 @@ SELECT id, 'pH Measurement', 'Measure hydrogen ion concentration in water sample
       }
     ]
   },
-  "workerForm": {
+  "labForm": {
     "title": "pH Measurement Form",
     "description": "Record pH meter readings for the water sample.",
     "questions": [
@@ -491,10 +532,15 @@ SELECT id, 'pH Measurement', 'Measure hydrogen ion concentration in water sample
     ]
   },
   "calculations": {
-    "ph_avg": "round(100 * (ph_reading_1 + ph_reading_2) / 2) / 100",
-    "status": "\"Acidic\" if ph_avg < 6.5 else (\"Alkaline\" if ph_avg > 8.5 else \"Neutral\")"
-  },
-  "template": "pH = {{ph_avg}} at {{temperature}}°C — {{status}}"
+    "ph_avg": {
+      "formula": "round(100 * (values[''ph_reading_1''] + values[''ph_reading_2'']) / 2) / 100",
+      "result": ""
+    },
+    "status": {
+      "formula": "\"Acidic\" if ph_avg < 6.5 else (\"Alkaline\" if ph_avg > 8.5 else \"Neutral\")",
+      "result": ""
+    }
+  }
 }'::jsonb
 FROM sample_types WHERE name = 'Environment Water'
 ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
@@ -504,7 +550,7 @@ ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;
 INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Turbidity Measurement', 'Measure water clarity using a nephelometric turbidimeter (NTU)',
 '{
-  "userForm": {
+  "clientForm": {
     "title": "Select Analyses",
     "description": "Choose which analyses are required for this water submission.",
     "questions": [
@@ -531,7 +577,7 @@ SELECT id, 'Turbidity Measurement', 'Measure water clarity using a nephelometric
       }
     ]
   },
-  "workerForm": {
+  "labForm": {
     "title": "Turbidity Form",
     "description": "Record turbidimeter readings.",
     "questions": [
@@ -568,11 +614,19 @@ SELECT id, 'Turbidity Measurement', 'Measure water clarity using a nephelometric
     ]
   },
   "calculations": {
-    "ntu_avg": "round(100 * (ntu_reading_1 + ntu_reading_2) / 2) / 100",
-    "who_limit": "5",
-    "exceeds_limit": "\"EXCEEDS WHO limit\" if ntu_avg > who_limit else \"Within WHO limit\""
-  },
-  "template": "Turbidity = {{ntu_avg}} NTU — {{exceeds_limit}} (5 NTU)"
+    "ntu_avg": {
+      "formula": "round(100 * (values[''ntu_reading_1''] + values[''ntu_reading_2'']) / 2) / 100",
+      "result": ""
+    },
+    "who_limit": {
+      "formula": "5",
+      "result": ""
+    },
+    "exceeds_limit": {
+      "formula": "\"EXCEEDS WHO limit\" if ntu_avg > who_limit else \"Within WHO limit\"",
+      "result": ""
+    }
+  }
 }'::jsonb
 FROM sample_types WHERE name = 'Environment Water'
 ON CONFLICT (sample_type_id, name) WHERE deleted_at IS NULL DO NOTHING;

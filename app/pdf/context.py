@@ -4,14 +4,9 @@ str→str dict suitable for {{field}} interpolation.
 
 Rules:
 - Top-level scalars (str, int, float, bool) → included directly.
-- userForm / workerForm with a "questions" list → each question's id becomes
-  a key; value is question.value, then config.default, then legacy default,
-  otherwise "[Label]".
-- repeatable-group answers stored on the group question's value object are
-  flattened onto child question ids.
-- calculations / calc_result dicts → keys exposed directly (calc_result wins).
+- values dict → each key exposed; list values joined for display.
+- calculations dict → each key uses result when present, otherwise formula.
 - Other nested dicts → flattened one level as parent_key notation.
-- Lists → skipped unless handled by a special rule above.
 """
 
 import json
@@ -21,58 +16,32 @@ from typing import Any
 _VALID_KEY = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
 
-def _question_answer(q: dict[str, Any]) -> Any:
-    if q.get("value") is not None:
-        return q["value"]
-    config = q.get("config") or {}
-    if isinstance(config, dict) and config.get("default") is not None:
-        return config["default"]
-    return q.get("default")
-
-
-def _format_answer(value: Any, q_label: str, q_id: str) -> str:
+def _format_scalar(value: Any, label: str) -> str:
     if value is None:
-        return f"[{q_label}]"
+        return f"[{label}]"
     if isinstance(value, (str, int, float, bool)):
         return str(value)
     if isinstance(value, list):
         return ", ".join(str(item) for item in value)
     if isinstance(value, dict):
         return json.dumps(value, ensure_ascii=False)
-    return f"[{q_label or q_id}]"
+    return f"[{label}]"
 
 
-def _add_question_context(
-    context: dict[str, str],
-    q: dict[str, Any],
-    *,
-    overwrite: bool,
-) -> None:
-    q_id = q.get("id", "")
-    q_label = q.get("label", q_id)
-    if not q_id or not _VALID_KEY.match(q_id):
+def _add_calculation_context(context: dict[str, str], name: str, entry: Any) -> None:
+    if not _VALID_KEY.match(name):
         return
-
-    if q.get("type") == "repeatable-group":
-        group_value = _question_answer(q)
-        if isinstance(group_value, dict):
-            for child_id, child_value in group_value.items():
-                if (
-                    isinstance(child_id, str)
-                    and _VALID_KEY.match(child_id)
-                    and (overwrite or child_id not in context)
-                ):
-                    context[child_id] = _format_answer(child_value, child_id, child_id)
-        return
-
-    if not overwrite and q_id in context:
-        return
-
-    answer = _question_answer(q)
-    if isinstance(answer, (str, int, float, bool, list, dict)):
-        context[q_id] = _format_answer(answer, q_label, q_id)
-    else:
-        context[q_id] = f"[{q_label}]"
+    if isinstance(entry, dict):
+        result = entry.get("result")
+        if result is not None and result != "":
+            context[name] = _format_scalar(result, name)
+            return
+        formula = entry.get("formula")
+        if isinstance(formula, str):
+            context[name] = formula
+            return
+    if isinstance(entry, (str, int, float, bool)):
+        context[name] = str(entry)
 
 
 def flatten_context(data: dict[str, Any]) -> dict[str, str]:
@@ -84,20 +53,14 @@ def flatten_context(data: dict[str, Any]) -> dict[str, str]:
                 context[key] = str(value)
 
         elif isinstance(value, dict):
-            if "questions" in value and isinstance(value["questions"], list):
-                for q in value["questions"]:
-                    _add_question_context(context, q, overwrite=False)
-            elif key in ("calculations", "calc_result"):
+            if key == "values":
                 for sub_key, sub_val in value.items():
-                    # calc_result always overrides calculations (actual values > expressions)
-                    if _VALID_KEY.match(sub_key) and (
-                        key == "calc_result" or sub_key not in context
-                    ):
-                        if isinstance(sub_val, (str, int, float, bool)):
-                            context[sub_key] = str(sub_val)
-                        else:
-                            context[sub_key] = f"[{sub_key}]"
-            else:
+                    if _VALID_KEY.match(sub_key):
+                        context[sub_key] = _format_scalar(sub_val, sub_key)
+            elif key == "calculations":
+                for sub_key, sub_val in value.items():
+                    _add_calculation_context(context, sub_key, sub_val)
+            elif "questions" not in value:
                 for sub_key, sub_val in value.items():
                     flat = f"{key}_{sub_key}"
                     if isinstance(
@@ -105,10 +68,15 @@ def flatten_context(data: dict[str, Any]) -> dict[str, str]:
                     ) and _VALID_KEY.match(flat):
                         context[flat] = str(sub_val)
 
-    if isinstance(data.get("workerForm"), dict):
-        worker_questions = data["workerForm"].get("questions")
-        if isinstance(worker_questions, list):
-            for q in worker_questions:
-                _add_question_context(context, q, overwrite=True)
+    values = data.get("values")
+    if isinstance(values, dict):
+        for sub_key, sub_val in values.items():
+            if _VALID_KEY.match(sub_key):
+                context[sub_key] = _format_scalar(sub_val, sub_key)
+
+    calculations = data.get("calculations")
+    if isinstance(calculations, dict):
+        for sub_key, sub_val in calculations.items():
+            _add_calculation_context(context, sub_key, sub_val)
 
     return context

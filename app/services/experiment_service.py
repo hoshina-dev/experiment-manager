@@ -28,9 +28,12 @@ def _build_state(
     return {
         "id": str(exp_id),
         "sample_id": str(sample_id),
-        "template_id": str(t.id),  # frozen specific version id
+        "template_id": str(t.id),
         "lineage_id": str(t.lineage_id),
+        "name": t.name,
+        "description": t.description,
         **t.template,
+        "values": {},
     }
 
 
@@ -115,10 +118,13 @@ async def update_experiment(
             raise HTTPException(404, f'Experiment "{exp_id}" not found')
         state = {
             **existing.state,
-            "userForm": body.userForm,
-            "workerForm": body.workerForm.model_dump(),
-            "calculations": body.calculations,
-            "template": body.template,
+            "clientForm": body.clientForm.model_dump(),
+            "labForm": body.labForm.model_dump(),
+            "calculations": {
+                name: calc.model_dump(exclude_none=True)
+                for name, calc in body.calculations.items()
+            },
+            "values": body.values,
         }
         row = await experiment_repo.update(session, exp_id, state)
         await session.commit()
@@ -160,7 +166,7 @@ async def request_report(
             exp_id=exp_id,
             experiment_data=row.state,
             pdf_components=pdf_components,
-            template_name=row.state["title"],
+            template_name=row.state["name"],
         )
 
         try:
@@ -189,7 +195,7 @@ async def get_report_download_url(
         if not row.report_r2_key:
             raise HTTPException(404, "Report not yet available")
 
-        filename = f"{row.state['title']}.pdf"
+        filename = f"{row.state['name']}.pdf"
         expires_in = 900
 
         url = presign_download(row.report_r2_key, r2_cfg, filename, expires_in)

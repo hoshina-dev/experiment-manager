@@ -13,11 +13,11 @@ SELECT
   '3fa85f64-5717-4562-b3fc-2c963f66afa6'::uuid,
   jsonb_set(
     jsonb_set('{
-  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "title": "Calorific Value (GCV)",
-  "description": "Determine gross calorific value by bomb calorimetry",
-  "userForm": {},
-  "workerForm": {
+  "clientForm": {
+    "title": "Client Form",
+    "questions": []
+  },
+  "labForm": {
     "title": "GCV Measurement Form",
     "description": "Record bomb calorimeter readings and analyst information.",
     "questions": [
@@ -26,7 +26,6 @@ SELECT
         "type": "number",
         "label": "Sample mass (g)",
         "required": true,
-        "value": 1,
         "config": {
           "min": 0,
           "max": 10,
@@ -39,7 +38,6 @@ SELECT
         "type": "number",
         "label": "Water equivalent of calorimeter (cal/°C)",
         "required": true,
-        "value": 2526,
         "config": {
           "min": 1000,
           "max": 5000,
@@ -52,7 +50,6 @@ SELECT
         "type": "number",
         "label": "Temperature rise (°C)",
         "required": true,
-        "value": 2.5,
         "config": {
           "min": 0,
           "max": 10,
@@ -65,7 +62,6 @@ SELECT
         "type": "number",
         "label": "Fuse wire correction (cal)",
         "required": false,
-        "value": 2,
         "config": {
           "min": 0,
           "max": 100,
@@ -78,7 +74,6 @@ SELECT
         "type": "string",
         "label": "Analyst name",
         "required": true,
-        "value": "Dr. Pornpun Kittipanya",
         "config": {
           "maxLength": 80,
           "default": "Dr. Analyst",
@@ -89,7 +84,6 @@ SELECT
         "id": "lab_notes",
         "type": "textarea",
         "label": "Observations during test",
-        "value": "No anomalous exotherms detected during combustion. Sample ignited cleanly on first attempt. Result within expected range for this fuel grade.",
         "config": {
           "maxLength": 500,
           "default": "No anomalous exotherms detected during combustion. Sample ignited cleanly on first attempt. Result within expected range for this fuel grade.",
@@ -102,7 +96,6 @@ SELECT
         "id": "instrument_code",
         "type": "password",
         "label": "Instrument calibration code",
-        "value": "CAL-2024-88",
         "config": {
           "minLength": 4,
           "placeholder": "•••••••"
@@ -113,7 +106,6 @@ SELECT
         "type": "select-string",
         "label": "Fuel type",
         "required": true,
-        "value": "Coal (Bituminous)",
         "config": {
           "options": [
             {
@@ -145,7 +137,6 @@ SELECT
         "id": "combustion_pressure",
         "type": "select-number",
         "label": "Combustion O₂ pressure (atm)",
-        "value": 30,
         "config": {
           "options": [
             {
@@ -168,9 +159,6 @@ SELECT
         "id": "corrections_applied",
         "type": "multi-select",
         "label": "Corrections applied",
-        "value": [
-          "fuse"
-        ],
         "config": {
           "options": [
             {
@@ -202,7 +190,6 @@ SELECT
         "type": "radio",
         "label": "Test validity",
         "required": true,
-        "value": "Valid",
         "config": {
           "options": [
             {
@@ -225,11 +212,6 @@ SELECT
         "id": "qc_checks",
         "type": "checkbox-group",
         "label": "QC checklist completed",
-        "value": [
-          "calibration",
-          "blank_run",
-          "reference"
-        ],
         "config": {
           "options": [
             {
@@ -259,7 +241,6 @@ SELECT
         "id": "certified",
         "type": "boolean",
         "label": "Certified measurement",
-        "value": true,
         "config": {
           "default": true
         }
@@ -268,7 +249,6 @@ SELECT
         "id": "sample_grade",
         "type": "segmented",
         "label": "Sample grade",
-        "value": "A",
         "config": {
           "options": [
             {
@@ -291,7 +271,6 @@ SELECT
         "id": "confidence",
         "type": "slider",
         "label": "Result confidence (%)",
-        "value": 95,
         "config": {
           "min": 0,
           "max": 100,
@@ -317,7 +296,6 @@ SELECT
         "id": "sample_quality",
         "type": "rating",
         "label": "Sample quality",
-        "value": 4,
         "config": {
           "count": 5,
           "fractions": 1,
@@ -328,7 +306,6 @@ SELECT
         "id": "sample_color",
         "type": "color",
         "label": "Sample color (visual observation)",
-        "value": "#212121",
         "config": {
           "default": "#212121",
           "swatches": [
@@ -346,7 +323,6 @@ SELECT
         "type": "date",
         "label": "Analysis date",
         "required": true,
-        "value": "2026-06-04",
         "config": {
           "default": "2026-06-01"
         }
@@ -355,7 +331,6 @@ SELECT
         "id": "analysis_time",
         "type": "time",
         "label": "Analysis start time",
-        "value": "09:15",
         "config": {
           "default": "09:00"
         }
@@ -364,7 +339,6 @@ SELECT
         "id": "test_started_at",
         "type": "datetime",
         "label": "Test start (date + time)",
-        "value": "2026-06-04T09:15",
         "config": {
           "default": "2026-06-01T09:00"
         }
@@ -373,12 +347,6 @@ SELECT
         "id": "sample_tags",
         "type": "tags",
         "label": "Sample tags",
-        "value": [
-          "gcv",
-          "calorimetry",
-          "coal",
-          "certified"
-        ],
         "config": {
           "default": [
             "gcv",
@@ -392,11 +360,56 @@ SELECT
     ]
   },
   "calculations": {
-    "fuse_corr": "2",
-    "gcv_cal_g": "6313",
-    "gcv_kj_kg": "26431"
+    "fuse_corr": {
+      "formula": "values[''fuse_correction''] or 0",
+      "result": 2.0
+    },
+    "gcv_cal_g": {
+      "formula": "round((values[''water_equivalent''] * values[''temp_rise''] - fuse_corr) / values[''sample_mass''])",
+      "result": 6313.0
+    },
+    "gcv_kj_kg": {
+      "formula": "round(gcv_cal_g * 4.1868)",
+      "result": 26431.0
+    }
   },
-  "template": "GCV = {{gcv_cal_g}} cal/g ({{gcv_kj_kg}} kJ/kg)"
+  "values": {
+    "sample_mass": 1,
+    "water_equivalent": 2526,
+    "temp_rise": 2.5,
+    "fuse_correction": 2,
+    "analyst_name": "Dr. Pornpun Kittipanya",
+    "lab_notes": "No anomalous exotherms detected during combustion. Sample ignited cleanly on first attempt. Result within expected range for this fuel grade.",
+    "instrument_code": "CAL-2024-88",
+    "fuel_type": "Coal (Bituminous)",
+    "combustion_pressure": 30,
+    "corrections_applied": [
+      "fuse"
+    ],
+    "test_validity": "Valid",
+    "qc_checks": [
+      "calibration",
+      "blank_run",
+      "reference"
+    ],
+    "certified": true,
+    "sample_grade": "A",
+    "confidence": 95,
+    "sample_quality": 4,
+    "sample_color": "#212121",
+    "analysis_date": "2026-06-04",
+    "analysis_time": "09:15",
+    "test_started_at": "2026-06-04T09:15",
+    "sample_tags": [
+      "gcv",
+      "calorimetry",
+      "coal",
+      "certified"
+    ]
+  },
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "name": "Calorific Value (GCV)",
+  "description": "Determine gross calorific value by bomb calorimetry"
 }'::jsonb, '{sample_id}', to_jsonb(refs.sample_id::text)),
     '{template_id}', to_jsonb(refs.template_id::text)
   )

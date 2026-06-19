@@ -14,10 +14,7 @@ SELECT
   jsonb_set(
     jsonb_set(
     '{
-  "id": "7b1e39a5-86e2-433f-a194-397061316cb6",
-  "title": "Heat Capacity Analysis",
-  "description": "Bomb-calorimeter determination of specific and molar heat capacity",
-  "userForm": {
+  "clientForm": {
     "title": "Sample Information",
     "description": "Details of the specimen submitted for analysis.",
     "questions": [
@@ -26,7 +23,6 @@ SELECT
         "type": "string",
         "label": "Sample ID",
         "required": true,
-        "value": "CHR-2024-047",
         "config": {
           "default": "CHR-001"
         }
@@ -36,7 +32,6 @@ SELECT
         "type": "string",
         "label": "Source / Grade",
         "required": true,
-        "value": "Activated coconut charcoal, 99.5% purity (Sigma-Aldrich #C9157)",
         "config": {
           "default": "Activated charcoal sample"
         }
@@ -46,7 +41,6 @@ SELECT
         "type": "string",
         "label": "Sample mass (g)",
         "required": true,
-        "value": "1.2340",
         "config": {
           "default": "1.0000"
         }
@@ -56,7 +50,6 @@ SELECT
         "type": "string",
         "label": "Initial temperature (°C)",
         "required": true,
-        "value": "24.82",
         "config": {
           "default": "25.00"
         }
@@ -66,7 +59,6 @@ SELECT
         "type": "string",
         "label": "Final temperature (°C)",
         "required": true,
-        "value": "30.17",
         "config": {
           "default": "30.00"
         }
@@ -76,14 +68,13 @@ SELECT
         "type": "string",
         "label": "Calorimeter constant (J/°C)",
         "required": true,
-        "value": "9845.0",
         "config": {
           "default": "9800.0"
         }
       }
     ]
   },
-  "workerForm": {
+  "labForm": {
     "title": "Analyst Details",
     "description": "Completed by the laboratory analyst after measurement.",
     "questions": [
@@ -91,7 +82,6 @@ SELECT
         "id": "analyst_name",
         "type": "string",
         "label": "Analyst name",
-        "value": "Dr. Pornpun Kittipanya",
         "config": {
           "default": "Analyst"
         }
@@ -100,7 +90,6 @@ SELECT
         "id": "lab_id",
         "type": "string",
         "label": "Laboratory ID",
-        "value": "TH-CHEM-LAB-03",
         "config": {
           "default": "LAB-001"
         }
@@ -109,7 +98,6 @@ SELECT
         "id": "analysis_date",
         "type": "string",
         "label": "Analysis date",
-        "value": "2024-11-14",
         "config": {
           "default": "YYYY-MM-DD"
         }
@@ -118,7 +106,6 @@ SELECT
         "id": "instrument",
         "type": "string",
         "label": "Instrument",
-        "value": "Parr 6200 Isoperibol Calorimeter",
         "config": {
           "default": "Bomb Calorimeter"
         }
@@ -127,7 +114,6 @@ SELECT
         "id": "method_ref",
         "type": "string",
         "label": "Method reference",
-        "value": "ASTM D5865 / ISO 1928",
         "config": {
           "default": "ASTM D5865"
         }
@@ -135,12 +121,39 @@ SELECT
     ]
   },
   "calculations": {
-    "delta_T": "5.35",
-    "heat_released": "52657.75",
-    "specific_heat": "42670.0",
-    "molar_heat_capacity": "512.3"
+    "delta_T": {
+      "formula": "values[''temperature_final''] - values[''temperature_initial'']",
+      "result": 5.35
+    },
+    "heat_released": {
+      "formula": "round(values[''calorimeter_constant''] * delta_T * 100) / 100",
+      "result": 52657.75
+    },
+    "specific_heat": {
+      "formula": "round(heat_released / values[''sample_mass''] * 10) / 10",
+      "result": 42670.0
+    },
+    "molar_heat_capacity": {
+      "formula": "round(specific_heat * 12.011 * 10) / 10",
+      "result": 512.3
+    }
   },
-  "template": "Sample {{sample_id}} — {{sample_source}} — was analysed on {{analysis_date}} by {{analyst_name}} ({{lab_id}}) using a {{instrument}} following {{method_ref}}.\n\nA specimen of {{sample_mass}} g was combusted under pure oxygen. Temperature rose from {{temperature_initial}} °C to {{temperature_final}} °C, giving ΔT = {{delta_T}} °C. Applying the calorimeter constant of {{calorimeter_constant}} J/°C:\n\n  Q = C × ΔT = {{calorimeter_constant}} × {{delta_T}} = {{heat_released}} J\n\nSpecific heat capacity = Q / m = {{specific_heat}} J/g\nMolar heat capacity (M = 12.011 g/mol) = {{molar_heat_capacity}} J/mol"
+  "values": {
+    "sample_id": "CHR-2024-047",
+    "sample_source": "Activated coconut charcoal, 99.5% purity (Sigma-Aldrich #C9157)",
+    "sample_mass": "1.2340",
+    "temperature_initial": "24.82",
+    "temperature_final": "30.17",
+    "calorimeter_constant": "9845.0",
+    "analyst_name": "Dr. Pornpun Kittipanya",
+    "lab_id": "TH-CHEM-LAB-03",
+    "analysis_date": "2024-11-14",
+    "instrument": "Parr 6200 Isoperibol Calorimeter",
+    "method_ref": "ASTM D5865 / ISO 1928"
+  },
+  "id": "7b1e39a5-86e2-433f-a194-397061316cb6",
+  "name": "Heat Capacity Analysis",
+  "description": "Bomb-calorimeter determination of specific and molar heat capacity"
 }'::jsonb,
     '{sample_id}', to_jsonb(refs.sample_id::text)),
     '{template_id}', to_jsonb(refs.template_id::text)
