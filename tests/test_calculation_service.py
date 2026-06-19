@@ -24,6 +24,13 @@ def test_extract_inputs_falls_back_to_default() -> None:
     assert _extract_inputs(state) == {"x": 3.0}
 
 
+def test_extract_inputs_falls_back_to_config_default() -> None:
+    state = {"workerForm": {"questions": [
+        {"id": "x", "type": "number", "config": {"default": 3.0}}
+    ]}}
+    assert _extract_inputs(state) == {"x": 3.0}
+
+
 def test_extract_inputs_skips_missing_id() -> None:
     state = {"workerForm": {"questions": [{"default": 1.0}]}}
     assert _extract_inputs(state) == {}

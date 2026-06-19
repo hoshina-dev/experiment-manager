@@ -59,13 +59,17 @@ psql $DATABASE_URL -f migrations/006_experiment_templates_lineage_id_default.up.
 psql $DATABASE_URL -f migrations/007_drop_stale_template_name_index.up.sql
 psql $DATABASE_URL -f sql_mock/900_seed_samples.up.sql
 psql $DATABASE_URL -f sql_mock/901_seed_experiment_templates.up.sql
-psql $DATABASE_URL -f sql_mock/902_seed_heat_capacity_template.up.sql
+psql $DATABASE_URL -f sql_mock/902_seed_coal_heat_capacity_experiment_template.up.sql
 psql $DATABASE_URL -f sql_mock/903_seed_coal_calorific_value_experiment_template.up.sql
 psql $DATABASE_URL -f sql_mock/904_seed_coal_heat_capacity_pdf_template.up.sql
 psql $DATABASE_URL -f sql_mock/905_seed_coal_calorific_value_pdf_template.up.sql
 psql $DATABASE_URL -f sql_mock/906_seed_coal_heat_capacity_experiment.up.sql
 psql $DATABASE_URL -f sql_mock/907_seed_coal_calorific_value_experiment.up.sql
+psql $DATABASE_URL -f sql_mock/908_seed_tomato_analysis_experiment_template.up.sql
+psql $DATABASE_URL -f sql_mock/909_seed_tomato_analysis_pdf_template.up.sql
 ```
+
+Template JSON in `sql_mock/` stores question options under a nested `config` object (aligned with the form-poc / `packages/forms` schema). Answer snapshots still use top-level `value` on each question.
 
 ### 4. Run the server
 

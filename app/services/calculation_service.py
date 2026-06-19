@@ -12,16 +12,33 @@ from app.services.experiment_service import _row_to_detail
 # Input extraction
 # ---------------------------------------------------------------------------
 
+def _question_value(q: dict) -> object | None:
+    if q.get("value") is not None:
+        return q["value"]
+    config = q.get("config") or {}
+    if isinstance(config, dict) and config.get("default") is not None:
+        return config["default"]
+    return q.get("default")
+
+
 def _extract_inputs(state: dict) -> dict[str, object]:
     worker_form = state.get("workerForm") or {}
     questions = worker_form.get("questions", []) if isinstance(worker_form, dict) else []
     inputs: dict[str, object] = {}
     for q in questions:
         q_id = q.get("id")
-        if q_id:
-            value = q.get("value", q.get("default"))
-            if value is not None:
-                inputs[q_id] = value
+        if not q_id:
+            continue
+        if q.get("type") == "repeatable-group":
+            group_value = _question_value(q)
+            if isinstance(group_value, dict):
+                for child_id, child_value in group_value.items():
+                    if child_value is not None:
+                        inputs[child_id] = child_value
+            continue
+        value = _question_value(q)
+        if value is not None:
+            inputs[q_id] = value
     return inputs
 
 
