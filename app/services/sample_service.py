@@ -23,8 +23,8 @@ tracer = trace.get_tracer(__name__)
 
 def _template_jsonb(body: ExperimentTemplateCreate | ExperimentTemplateUpdate) -> dict:
     return {
-        "clientForm": body.clientForm.model_dump(),
-        "labForm": body.labForm.model_dump(),
+        "clientForm": body.clientForm.model_dump(exclude_none=True),
+        "labForm": body.labForm.model_dump(exclude_none=True),
         "calculations": {
             name: calc.model_dump(exclude_none=True)
             for name, calc in body.calculations.items()
@@ -48,6 +48,7 @@ def _to_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
         id=t.id,
         lineage_id=t.lineage_id,
         name=t.name,
+        description=t.description,
         version=t.version,
         is_current=t.is_current,
         **t.template,

@@ -76,6 +76,7 @@ class ExperimentTemplateDetail(BaseModel):
     id: UUID
     lineage_id: UUID
     name: str
+    description: str | None = None
     version: int
     is_current: bool
 

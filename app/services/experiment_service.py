@@ -119,8 +119,8 @@ async def update_experiment(
             raise HTTPException(404, f'Experiment "{exp_id}" not found')
         context = {
             **existing.state,
-            "clientForm": body.clientForm.model_dump(),
-            "labForm": body.labForm.model_dump(),
+            "clientForm": body.clientForm.model_dump(exclude_none=True),
+            "labForm": body.labForm.model_dump(exclude_none=True),
             "calculations": {
                 name: calc.model_dump(exclude_none=True)
                 for name, calc in body.calculations.items()
