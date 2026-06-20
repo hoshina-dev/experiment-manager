@@ -16,6 +16,7 @@ from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
                         ExperimentTemplateUpdate, PdfTemplateBody,
                         PdfTemplateResponse, SampleCreate, SamplesListResponse,
                         SampleSummary, SampleUpdate)
+from app.validation import FormSchemaError, validate_form
 
 tracer = trace.get_tracer(__name__)
 
@@ -167,6 +168,16 @@ async def create_experiment_template(
             raise HTTPException(404, f'Sample "{sample_id}" not found')
         template_data = _template_jsonb(body)
         try:
+            validate_form(template_data)
+        except FormSchemaError as exc:
+            raise HTTPException(
+                422,
+                {
+                    "message": "Experiment template violates schema",
+                    "errors": exc.errors,
+                },
+            )
+        try:
             row = await repo.create_template(
                 session, sample_id, body.title, body.description, template_data
             )
@@ -199,6 +210,16 @@ async def update_experiment_template(
             raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
 
         template_data = _template_jsonb(body)
+        try:
+            validate_form(template_data)
+        except FormSchemaError as exc:
+            raise HTTPException(
+                422,
+                {
+                    "message": "Experiment template violates schema",
+                    "errors": exc.errors,
+                },
+            )
         has_experiments = await experiment_repo.any_experiment_uses_template(
             session, current.id
         )

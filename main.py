@@ -46,7 +46,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
                         exp_id=exp.id,
                         experiment_data=exp.state,
                         pdf_components=components,
-                        template_name=exp.state["title"],
+                        template_name=exp.state["name"],
                     )
                 )
                 await experiment_repo.update_report_status(session, exp.id, "pending")
