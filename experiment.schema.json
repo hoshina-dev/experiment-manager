@@ -1,0 +1,593 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hoshina.dev/schemas/experiment-template.json",
+  "title": "ExperimentTemplate",
+  "description": "A form template with a client form, a lab form, named calculations, and collected answer values. Every question id must be unique across BOTH clientForm and labForm (cross-form uniqueness cannot be expressed in JSON Schema and must be enforced in code).",
+  "type": "object",
+  "required": ["clientForm", "labForm", "calculations"],
+  "additionalProperties": false,
+  "properties": {
+    "clientForm": { "$ref": "#/$defs/formDoc" },
+    "labForm": { "$ref": "#/$defs/formDoc" },
+    "calculations": { "$ref": "#/$defs/calculations" },
+    "values": { "$ref": "#/$defs/values" }
+  },
+
+  "$defs": {
+    "formDoc": {
+      "type": "object",
+      "required": ["title", "questions"],
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "questions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/question" }
+        }
+      }
+    },
+
+    "calculations": {
+      "type": "object",
+      "description": "Map of variable name -> calculation. Keys must be valid identifiers. Formulas access scalar answers via values['id'] and repeatable-group answers as lists via values['child_id'] (one item per repetition). Aggregation helpers are expected to be available in the evaluation scope: mean, median, stdev, sum, min, max, len.",
+      "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+      "additionalProperties": { "$ref": "#/$defs/calculation" }
+    },
+
+    "calculation": {
+      "type": "object",
+      "required": ["formula"],
+      "additionalProperties": false,
+      "properties": {
+        "formula": {
+          "type": "string",
+          "description": "Executable Python code string."
+        },
+        "result": {
+          "description": "Computed output; empty string until evaluated. May be an array when the formula aggregates or maps over a repeatable-group (e.g. a per-repetition value).",
+          "anyOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" },
+            { "type": "null" },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  { "type": "string" },
+                  { "type": "number" },
+                  { "type": "boolean" },
+                  { "type": "null" }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+
+    "values": {
+      "type": "object",
+      "description": "Collected answers keyed by form component id. Keys reference question ids from clientForm or labForm.",
+      "propertyNames": { "pattern": "^[A-Za-z0-9_-]+$" },
+      "additionalProperties": { "$ref": "#/$defs/answerValue" }
+    },
+
+    "answerValue": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "array", "items": { "type": "string" } },
+        {
+          "type": "array",
+          "description": "Columnar storage for a repeatable-group child question: one entry per repetition (length equals the group's `count`). Inner arrays cover children whose own value is a list (e.g. multi-select).",
+          "items": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "number" },
+              { "type": "boolean" },
+              { "type": "null" },
+              { "type": "array", "items": { "type": "string" } }
+            ]
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+
+    "stringOption": {
+      "type": "object",
+      "required": ["label", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "value": { "type": "string" }
+      }
+    },
+
+    "numberOption": {
+      "type": "object",
+      "required": ["label", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "value": { "type": "number" }
+      }
+    },
+
+    "mark": {
+      "type": "object",
+      "required": ["value"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "number" },
+        "label": { "type": "string" }
+      }
+    },
+
+    "baseProps": {
+      "type": "object",
+      "required": ["id", "type", "label"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" }
+      }
+    },
+
+    "question": {
+      "oneOf": [
+        { "$ref": "#/$defs/stringQuestion" },
+        { "$ref": "#/$defs/textareaQuestion" },
+        { "$ref": "#/$defs/passwordQuestion" },
+        { "$ref": "#/$defs/numberQuestion" },
+        { "$ref": "#/$defs/selectStringQuestion" },
+        { "$ref": "#/$defs/selectNumberQuestion" },
+        { "$ref": "#/$defs/multiSelectQuestion" },
+        { "$ref": "#/$defs/radioQuestion" },
+        { "$ref": "#/$defs/checkboxGroupQuestion" },
+        { "$ref": "#/$defs/booleanQuestion" },
+        { "$ref": "#/$defs/segmentedQuestion" },
+        { "$ref": "#/$defs/sliderQuestion" },
+        { "$ref": "#/$defs/ratingQuestion" },
+        { "$ref": "#/$defs/colorQuestion" },
+        { "$ref": "#/$defs/dateQuestion" },
+        { "$ref": "#/$defs/timeQuestion" },
+        { "$ref": "#/$defs/datetimeQuestion" },
+        { "$ref": "#/$defs/tagsQuestion" },
+        { "$ref": "#/$defs/repeatableGroupQuestion" }
+      ]
+    },
+
+    "nestedQuestion": {
+      "description": "Questions allowed inside a repeatable-group. Excludes repeatable-group itself to enforce a single level of nesting.",
+      "oneOf": [
+        { "$ref": "#/$defs/stringQuestion" },
+        { "$ref": "#/$defs/textareaQuestion" },
+        { "$ref": "#/$defs/passwordQuestion" },
+        { "$ref": "#/$defs/numberQuestion" },
+        { "$ref": "#/$defs/selectStringQuestion" },
+        { "$ref": "#/$defs/selectNumberQuestion" },
+        { "$ref": "#/$defs/multiSelectQuestion" },
+        { "$ref": "#/$defs/radioQuestion" },
+        { "$ref": "#/$defs/checkboxGroupQuestion" },
+        { "$ref": "#/$defs/booleanQuestion" },
+        { "$ref": "#/$defs/segmentedQuestion" },
+        { "$ref": "#/$defs/sliderQuestion" },
+        { "$ref": "#/$defs/ratingQuestion" },
+        { "$ref": "#/$defs/colorQuestion" },
+        { "$ref": "#/$defs/dateQuestion" },
+        { "$ref": "#/$defs/timeQuestion" },
+        { "$ref": "#/$defs/datetimeQuestion" },
+        { "$ref": "#/$defs/tagsQuestion" }
+      ]
+    },
+
+    "stringQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "string" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minLength": { "type": "integer", "minimum": 0 },
+            "maxLength": { "type": "integer", "minimum": 0 },
+            "default": { "type": "string" },
+            "placeholder": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "textareaQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "textarea" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minLength": { "type": "integer", "minimum": 0 },
+            "maxLength": { "type": "integer", "minimum": 0 },
+            "default": { "type": "string" },
+            "placeholder": { "type": "string" },
+            "minRows": { "type": "integer", "minimum": 1 },
+            "maxRows": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+
+    "passwordQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "password" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minLength": { "type": "integer", "minimum": 0 },
+            "maxLength": { "type": "integer", "minimum": 0 },
+            "placeholder": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "numberQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "number" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" },
+            "step": { "type": "number" },
+            "default": { "type": "number" },
+            "placeholder": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "selectStringQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "select-string" },
+        "config": {
+          "type": "object",
+          "required": ["options"],
+          "additionalProperties": false,
+          "properties": {
+            "options": { "type": "array", "items": { "$ref": "#/$defs/stringOption" } },
+            "default": { "type": "string" },
+            "placeholder": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "selectNumberQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "select-number" },
+        "config": {
+          "type": "object",
+          "required": ["options"],
+          "additionalProperties": false,
+          "properties": {
+            "options": { "type": "array", "items": { "$ref": "#/$defs/numberOption" } },
+            "default": { "type": "number" },
+            "placeholder": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "multiSelectQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "multi-select" },
+        "config": {
+          "type": "object",
+          "required": ["options"],
+          "additionalProperties": false,
+          "properties": {
+            "options": { "type": "array", "items": { "$ref": "#/$defs/stringOption" } },
+            "default": { "type": "array", "items": { "type": "string" } },
+            "placeholder": { "type": "string" },
+            "maxValues": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+
+    "radioQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "radio" },
+        "config": {
+          "type": "object",
+          "required": ["options"],
+          "additionalProperties": false,
+          "properties": {
+            "options": { "type": "array", "items": { "$ref": "#/$defs/stringOption" } },
+            "default": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "checkboxGroupQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "checkbox-group" },
+        "config": {
+          "type": "object",
+          "required": ["options"],
+          "additionalProperties": false,
+          "properties": {
+            "options": { "type": "array", "items": { "$ref": "#/$defs/stringOption" } },
+            "default": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "booleanQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "boolean" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default": { "type": "boolean" }
+          }
+        }
+      }
+    },
+
+    "segmentedQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "segmented" },
+        "config": {
+          "type": "object",
+          "required": ["options"],
+          "additionalProperties": false,
+          "properties": {
+            "options": { "type": "array", "items": { "$ref": "#/$defs/stringOption" } },
+            "default": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "sliderQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "slider" },
+        "config": {
+          "type": "object",
+          "required": ["min", "max"],
+          "additionalProperties": false,
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" },
+            "step": { "type": "number" },
+            "default": { "type": "number" },
+            "marks": { "type": "array", "items": { "$ref": "#/$defs/mark" } }
+          }
+        }
+      }
+    },
+
+    "ratingQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "rating" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "count": { "type": "integer", "minimum": 1 },
+            "fractions": { "type": "integer", "minimum": 1 },
+            "default": { "type": "number" }
+          }
+        }
+      }
+    },
+
+    "colorQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "color" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default": { "type": "string" },
+            "placeholder": { "type": "string" },
+            "swatches": { "type": "array", "items": { "type": "string" } },
+            "format": { "enum": ["hex", "hexa", "rgb", "rgba", "hsl", "hsla"] }
+          }
+        }
+      }
+    },
+
+    "dateQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "date" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default": { "type": "string", "format": "date" },
+            "min": { "type": "string", "format": "date" },
+            "max": { "type": "string", "format": "date" }
+          }
+        }
+      }
+    },
+
+    "timeQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "time" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default": { "type": "string" },
+            "step": { "type": "number" }
+          }
+        }
+      }
+    },
+
+    "datetimeQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "datetime" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "tagsQuestion": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "tags" },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default": { "type": "array", "items": { "type": "string" } },
+            "placeholder": { "type": "string" },
+            "maxTags": { "type": "integer", "minimum": 1 },
+            "suggestions": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "repeatableGroupQuestion": {
+      "type": "object",
+      "description": "A fixed-count repeating section (e.g. 'measure the sample 8 times'). Child questions repeat exactly `count` times. Answers are stored columnar in the top-level `values`: each child question id maps to an array of length `count`. Child question ids must be globally unique like any other question id.",
+      "allOf": [{ "$ref": "#/$defs/baseProps" }],
+      "required": ["type", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "label": true, "description": true, "required": true,
+        "type": { "const": "repeatable-group" },
+        "config": {
+          "type": "object",
+          "required": ["count", "questions"],
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Fixed number of repetitions, decided when the template is created."
+            },
+            "itemLabel": {
+              "type": "string",
+              "description": "Singular noun for one repetition, e.g. 'Measurement' renders as 'Measurement 1', 'Measurement 2', ..."
+            },
+            "questions": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/nestedQuestion" },
+              "description": "Child questions repeated each iteration. Only one level of nesting is allowed (a repeatable-group cannot contain another repeatable-group)."
+            }
+          }
+        }
+      }
+    }
+  }
+}

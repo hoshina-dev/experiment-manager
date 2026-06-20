@@ -37,12 +37,16 @@ class FormQuestion(BaseModel):
 
 
 class FormDoc(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     title: str
     description: str | None = None
     questions: list[FormQuestion]
 
 
 class Calculation(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     formula: str
     result: Any = None
 

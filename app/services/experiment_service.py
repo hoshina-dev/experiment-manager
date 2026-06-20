@@ -16,6 +16,7 @@ from app.models import (ExperimentCreate, ExperimentDetail,
                         ExperimentUpdate, ReportDownloadResponse)
 from app.pdf.r2_client import presign_download
 from app.report_worker import ReportJob
+from app.validation import FormSchemaError, validate_form
 
 tracer = trace.get_tracer(__name__)
 
@@ -116,7 +117,7 @@ async def update_experiment(
         existing = await experiment_repo.get(session, exp_id)
         if existing is None:
             raise HTTPException(404, f'Experiment "{exp_id}" not found')
-        state = {
+        context = {
             **existing.state,
             "clientForm": body.clientForm.model_dump(),
             "labForm": body.labForm.model_dump(),
@@ -126,7 +127,17 @@ async def update_experiment(
             },
             "values": body.values,
         }
-        row = await experiment_repo.update(session, exp_id, state)
+        try:
+            validate_form(context)
+        except FormSchemaError as exc:
+            raise HTTPException(
+                422,
+                {
+                    "message": "Experiment context violates schema",
+                    "errors": exc.errors,
+                },
+            )
+        row = await experiment_repo.update(session, exp_id, context)
         await session.commit()
         return _row_to_detail(row)
 
