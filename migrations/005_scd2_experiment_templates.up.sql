@@ -28,19 +28,18 @@ ALTER TABLE experiment_templates
     ALTER COLUMN version    SET DEFAULT 1,
     ALTER COLUMN is_current SET DEFAULT true;
 
--- Step 5: drop the old unique constraint (blocks multiple versions of same name)
-ALTER TABLE experiment_templates
-    DROP CONSTRAINT experiment_templates_sample_type_id_name_key;
-
--- Step 6: only one active (current, non-deleted) version of a name per sample
+-- Step 5: only one active (current, non-deleted) version of a name per sample
+-- (the old hard UNIQUE(sample_type_id, name) constraint was already replaced
+-- by uq_experiment_templates_name_active back in migration 002 — nothing to
+-- drop here. The now-stale 002 index is cleaned up later by migration 007.)
 CREATE UNIQUE INDEX uq_experiment_templates_current_name
     ON experiment_templates (sample_type_id, name)
     WHERE is_current = true AND deleted_at IS NULL;
 
--- Step 7: no duplicate version numbers within a lineage
+-- Step 6: no duplicate version numbers within a lineage
 CREATE UNIQUE INDEX uq_experiment_templates_lineage_version
     ON experiment_templates (lineage_id, version);
 
--- Step 8: fast lookup of all versions for a lineage (editor history view)
+-- Step 7: fast lookup of all versions for a lineage (editor history view)
 CREATE INDEX idx_experiment_templates_lineage_id
     ON experiment_templates (lineage_id);

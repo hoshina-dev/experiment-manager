@@ -5,9 +5,8 @@ DROP INDEX IF EXISTS idx_experiment_templates_lineage_id;
 DROP INDEX IF EXISTS uq_experiment_templates_lineage_version;
 DROP INDEX IF EXISTS uq_experiment_templates_current_name;
 
-ALTER TABLE experiment_templates
-    ADD CONSTRAINT experiment_templates_sample_type_id_name_key
-        UNIQUE (sample_type_id, name);
+-- Falls back to whatever 002 left in place (uq_experiment_templates_name_active);
+-- the original hard UNIQUE constraint is 002's to restore, not 005's.
 
 ALTER TABLE experiment_templates
     DROP COLUMN lineage_id,
