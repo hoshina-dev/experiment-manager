@@ -4,12 +4,12 @@ SELECT st.id,
        'Chemical analysis of any fresh tomato from the ranch 1982',
        '{
   "clientForm": {
-    "title": "Select Analyses",
+    "name": "Select Analyses",
     "description": "Choose which analyses are required for this tomato submission.",
     "questions": []
   },
   "labForm": {
-    "title": "Experiment Form",
+    "name": "Experiment Form",
     "description": "Lab stations analysis form",
     "questions": [
       {

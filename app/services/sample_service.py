@@ -180,14 +180,14 @@ async def create_experiment_template(
             )
         try:
             row = await repo.create_template(
-                session, sample_id, body.title, body.description, template_data
+                session, sample_id, body.name, body.description, template_data
             )
             await session.commit()
         except IntegrityError:
             await session.rollback()
             raise HTTPException(
                 409,
-                f'Experiment template "{body.title}" already exists for this sample',
+                f'Experiment template "{body.name}" already exists for this sample',
             )
         return _to_detail(row)
 
@@ -231,7 +231,7 @@ async def update_experiment_template(
                     session,
                     sample_id,
                     lineage_id,
-                    body.title,
+                    body.name,
                     body.description,
                     template_data,
                 )
@@ -240,7 +240,7 @@ async def update_experiment_template(
                     session,
                     sample_id,
                     current.id,
-                    body.title,
+                    body.name,
                     body.description,
                     template_data,
                 )
@@ -252,7 +252,7 @@ async def update_experiment_template(
             await session.rollback()
             raise HTTPException(
                 409,
-                f'Experiment template "{body.title}" already exists for this sample',
+                f'Experiment template "{body.name}" already exists for this sample',
             )
         return _to_detail(row)
 

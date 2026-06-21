@@ -156,8 +156,8 @@ POST `/api/experiments` body:
 PUT body — send clientForm, labForm, calculations, and values:
 ```json
 {
-  "clientForm": { "title": "...", "questions": [ ... ] },
-  "labForm": { "title": "...", "questions": [ ... ] },
+  "clientForm": { "name": "...", "questions": [ ... ] },
+  "labForm": { "name": "...", "questions": [ ... ] },
   "calculations": { "gcv_cal_g": { "formula": "round((values['water_equivalent'] * values['temp_rise']) / values['sample_mass'])" } },
   "values": { "sample_mass": 1.023, "temp_rise": 2.5 }
 }
@@ -179,8 +179,8 @@ Returns 409 if `exp_id` already exists.
   "lineage_id":   "uuid",
   "name":         "Proximate Analysis",
   "description":  "...",
-  "clientForm":   { "title": "...", "questions": [ ... ] },
-  "labForm":      { "title": "...", "questions": [ ... ] },
+  "clientForm":   { "name": "...", "questions": [ ... ] },
+  "labForm":      { "name": "...", "questions": [ ... ] },
   "calculations": { "result_var": { "formula": "...", "result": 42.0 } },
   "values":       { "sample_mass": 1.023 }
 }
@@ -200,8 +200,8 @@ On PUT the worker sends back `clientForm`, `labForm`, `calculations`, and `value
 `experiment_templates.template` stores:
 ```json
 {
-  "clientForm":   { "title": "...", "description": "...", "questions": [ ... ] },
-  "labForm":      { "title": "...", "description": "...", "questions": [ ... ] },
+  "clientForm":   { "name": "...", "description": "...", "questions": [ ... ] },
+  "labForm":      { "name": "...", "description": "...", "questions": [ ... ] },
   "calculations": { "result_var": { "formula": "Python expression" } }
 }
 ```

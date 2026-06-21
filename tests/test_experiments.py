@@ -15,8 +15,8 @@ _VALID_BODY = {
 }
 
 _STATE_WITH_VALUES = {
-    "clientForm": {"title": "Client", "questions": []},
-    "labForm": {"title": "Proximate Form", "questions": []},
+    "clientForm": {"name": "Client", "questions": []},
+    "labForm": {"name": "Proximate Form", "questions": []},
     "calculations": {
         "result": {"formula": "values['value'] * 100", "result": ""},
     },
@@ -97,7 +97,7 @@ async def test_update_experiment_stores_state(client: AsyncClient):
     body = (
         await client.put(f"/api/experiments/{_EXP_ID}", json=_STATE_WITH_VALUES)
     ).json()
-    assert body["labForm"]["title"] == "Proximate Form"
+    assert body["labForm"]["name"] == "Proximate Form"
     assert body["calculations"]["result"]["formula"] == "values['value'] * 100"
     assert body["values"]["value"] == 5
 

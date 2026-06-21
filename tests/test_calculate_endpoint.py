@@ -21,8 +21,8 @@ async def test_calculate_returns_200_with_results(client: AsyncClient):
     await client.put(
         f"/api/experiments/{_EXP_ID}",
         json={
-            "clientForm": {"title": "Client", "questions": []},
-            "labForm": {"title": "Form", "questions": []},
+            "clientForm": {"name": "Client", "questions": []},
+            "labForm": {"name": "Form", "questions": []},
             "calculations": {
                 "result": {"formula": "values['value'] * 100", "result": ""},
             },
@@ -40,8 +40,8 @@ async def test_calculate_result_persisted_in_state(client: AsyncClient):
     await client.put(
         f"/api/experiments/{_EXP_ID}",
         json={
-            "clientForm": {"title": "Client", "questions": []},
-            "labForm": {"title": "Form", "questions": []},
+            "clientForm": {"name": "Client", "questions": []},
+            "labForm": {"name": "Form", "questions": []},
             "calculations": {
                 "result": {"formula": "values['value'] * 100", "result": ""},
             },
@@ -65,8 +65,8 @@ async def test_calculate_division_by_zero_returns_422(client: AsyncClient):
     await client.put(
         f"/api/experiments/{_EXP_ID_2}",
         json={
-            "clientForm": {"title": "Client", "questions": []},
-            "labForm": {"title": "Form", "questions": []},
+            "clientForm": {"name": "Client", "questions": []},
+            "labForm": {"name": "Form", "questions": []},
             "calculations": {
                 "bad": {"formula": "1 / values['value']", "result": ""},
             },

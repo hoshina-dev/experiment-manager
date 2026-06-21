@@ -9,10 +9,10 @@ from tests.conftest import (CALORIFIC_TEMPLATE_ID, COAL_ID,
 
 _NEW_SAMPLE = {"name": "Test Sample", "description": "For testing"}
 _NEW_EXPERIMENT_TEMPLATE = {
-    "title": "Test Analysis",
+    "name": "Test Analysis",
     "description": "A test analysis",
-    "clientForm": {"title": "Client", "questions": []},
-    "labForm": {"title": "Test Form", "questions": []},
+    "clientForm": {"name": "Client", "questions": []},
+    "labForm": {"name": "Test Form", "questions": []},
     "calculations": {
         "x": {"formula": "values['a'] + values['b']", "result": ""},
     },
@@ -188,7 +188,7 @@ async def test_update_experiment_template_returns_200(client: AsyncClient):
         )
     ).json()
     lineage_id = created["lineage_id"]
-    updated = {**_NEW_EXPERIMENT_TEMPLATE, "title": "Updated Analysis"}
+    updated = {**_NEW_EXPERIMENT_TEMPLATE, "name": "Updated Analysis"}
     response = await client.put(
         f"/api/samples/{COAL_ID}/experiments/{lineage_id}", json=updated
     )

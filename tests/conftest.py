@@ -63,8 +63,8 @@ async def seed_catalogue(test_engine):
                     version=1,
                     is_current=True,
                     template={
-                        "clientForm": {"title": "Client", "questions": []},
-                        "labForm": {"title": "Proximate Form", "questions": []},
+                        "clientForm": {"name": "Client", "questions": []},
+                        "labForm": {"name": "Proximate Form", "questions": []},
                         "calculations": {
                             "result": {
                                 "formula": "values['value'] * 100",
@@ -82,8 +82,8 @@ async def seed_catalogue(test_engine):
                     version=1,
                     is_current=True,
                     template={
-                        "clientForm": {"title": "Client", "questions": []},
-                        "labForm": {"title": "Calorific Form", "questions": []},
+                        "clientForm": {"name": "Client", "questions": []},
+                        "labForm": {"name": "Calorific Form", "questions": []},
                         "calculations": {
                             "gcv": {
                                 "formula": "values['value'] * 4.1868",

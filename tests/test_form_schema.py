@@ -7,7 +7,7 @@ def test_collect_values_merges_defaults() -> None:
     state = {
         "values": {"x": 5},
         "labForm": {
-            "title": "Lab",
+            "name": "Lab",
             "questions": [
                 {"id": "y", "type": "number", "config": {"default": 3.0}},
             ],

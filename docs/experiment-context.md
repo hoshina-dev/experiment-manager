@@ -32,8 +32,8 @@ POST /api/experiments/{exp_id}/report/generate
   "lineage_id":   "uuid",
   "name":         "string",
   "description":  "string",
-  "clientForm":   { "title": "...", "questions": [ ... ] },
-  "labForm":      { "title": "...", "questions": [ ... ] },
+  "clientForm":   { "name": "...", "questions": [ ... ] },
+  "labForm":      { "name": "...", "questions": [ ... ] },
   "calculations": { "var_name": { "formula": "...", "result": 42.0 } },
   "values":       { "question_id": 1.234 }
 }
@@ -64,7 +64,7 @@ Both forms share the same structure:
 
 ```json
 {
-  "title": "string",
+  "name": "string",
   "description": "string",
   "questions": [
     {
