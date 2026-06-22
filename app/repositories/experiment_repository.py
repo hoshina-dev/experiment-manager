@@ -147,6 +147,11 @@ async def update_report_success(
 async def update_report_failure(
     session: AsyncSession, exp_id: uuid.UUID, error: str
 ) -> None:
+    """Clears `report_r2_key` along with marking the failure — a failed
+    regeneration must not leave `report/download` still serving a PDF from
+    a previous successful run, which would reflect stale data/template
+    content with no indication anything had changed.
+    """
     experiment = await get(session, exp_id)
     if experiment is None:
         logger.warning(
@@ -157,4 +162,5 @@ async def update_report_failure(
         return
     experiment.report_status = _REPORT_STATUS_FAILED
     experiment.report_error = error
+    experiment.report_r2_key = None
     await session.flush()

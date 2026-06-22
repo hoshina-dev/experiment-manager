@@ -224,7 +224,7 @@ A hairline at `y=60` and small italic text below it. Keep everything above `y=60
 
 ```json
 { "id": "footer_line", "type": "shape", "shape_type": "line", "rect": [36, 60, 540, 1], "color": "#BDBDBD", "stroke_width": 1 },
-{ "id": "footer_text", "type": "text",  "rect": [36, 44, 540, 12], "content": "Report — {{title}}",
+{ "id": "footer_text", "type": "text",  "rect": [36, 44, 540, 12], "content": "Report — {{name}}",
   "style": { "font": "Helvetica", "size": 8, "italic": true, "color": "#9E9E9E", "align": "center" } }
 ```
 
@@ -307,7 +307,7 @@ A one-page report for a simple measurement:
   { "id": "footer_line", "type": "shape", "shape_type": "line", "rect": [36, 60, 540, 1],
     "color": "#BDBDBD", "stroke_width": 1 },
   { "id": "footer_text", "type": "text", "rect": [36, 44, 540, 12],
-    "content": "{{title}}",
+    "content": "{{name}}",
     "style": { "font": "Helvetica", "size": 8, "italic": true, "color": "#9E9E9E", "align": "center" } }
 ]
 ```

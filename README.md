@@ -140,8 +140,8 @@ An experiment's state is a flat JSON blob stored in Postgres. At creation it mir
   "template_id": "uuid",
   "name": "Heat Capacity Analysis",
   "description": "...",
-  "clientForm": { "title": "...", "questions": [ ... ] },
-  "labForm": { "title": "...", "questions": [ ... ] },
+  "clientForm": { "name": "...", "questions": [ ... ] },
+  "labForm": { "name": "...", "questions": [ ... ] },
   "calculations": { "delta_T": { "formula": "values['temperature_final'] - values['temperature_initial']" } },
   "values": { "temperature_final": 30.17, "temperature_initial": 24.82 }
 }

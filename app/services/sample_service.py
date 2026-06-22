@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.repositories.experiment_repository as experiment_repo
 import app.repositories.sample_repository as repo
 from app.db_models import ExperimentTemplate
+from app.form_schema import find_duplicate_question_ids
 from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
                         ExperimentTemplateHistoryResponse,
                         ExperimentTemplatesResponse, ExperimentTemplateSummary,
@@ -21,10 +22,25 @@ from app.validation import FormSchemaError, validate_form
 tracer = trace.get_tracer(__name__)
 
 
+def _assert_no_duplicate_question_ids(template_data: dict) -> None:
+    duplicates = find_duplicate_question_ids(template_data)
+    if duplicates:
+        raise HTTPException(
+            422,
+            {
+                "message": "Experiment template violates schema",
+                "errors": [
+                    f"Question id(s) used more than once across "
+                    f"clientForm/labForm: {', '.join(duplicates)}"
+                ],
+            },
+        )
+
+
 def _template_jsonb(body: ExperimentTemplateCreate | ExperimentTemplateUpdate) -> dict:
     return {
-        "clientForm": body.clientForm.model_dump(),
-        "labForm": body.labForm.model_dump(),
+        "clientForm": body.clientForm.model_dump(exclude_none=True),
+        "labForm": body.labForm.model_dump(exclude_none=True),
         "calculations": {
             name: calc.model_dump(exclude_none=True)
             for name, calc in body.calculations.items()
@@ -48,6 +64,7 @@ def _to_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
         id=t.id,
         lineage_id=t.lineage_id,
         name=t.name,
+        description=t.description,
         version=t.version,
         is_current=t.is_current,
         **t.template,
@@ -177,16 +194,17 @@ async def create_experiment_template(
                     "errors": exc.errors,
                 },
             )
+        _assert_no_duplicate_question_ids(template_data)
         try:
             row = await repo.create_template(
-                session, sample_id, body.title, body.description, template_data
+                session, sample_id, body.name, body.description, template_data
             )
             await session.commit()
         except IntegrityError:
             await session.rollback()
             raise HTTPException(
                 409,
-                f'Experiment template "{body.title}" already exists for this sample',
+                f'Experiment template "{body.name}" already exists for this sample',
             )
         return _to_detail(row)
 
@@ -204,7 +222,7 @@ async def update_experiment_template(
         span.set_attribute("lineage.id", str(lineage_id))
 
         current = await repo.get_current_template_by_lineage(
-            session, sample_id, lineage_id
+            session, sample_id, lineage_id, lock=True
         )
         if current is None:
             raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
@@ -220,6 +238,7 @@ async def update_experiment_template(
                     "errors": exc.errors,
                 },
             )
+        _assert_no_duplicate_question_ids(template_data)
         has_experiments = await experiment_repo.any_experiment_uses_template(
             session, current.id
         )
@@ -230,7 +249,7 @@ async def update_experiment_template(
                     session,
                     sample_id,
                     lineage_id,
-                    body.title,
+                    body.name,
                     body.description,
                     template_data,
                 )
@@ -239,7 +258,7 @@ async def update_experiment_template(
                     session,
                     sample_id,
                     current.id,
-                    body.title,
+                    body.name,
                     body.description,
                     template_data,
                 )
@@ -251,7 +270,7 @@ async def update_experiment_template(
             await session.rollback()
             raise HTTPException(
                 409,
-                f'Experiment template "{body.title}" already exists for this sample',
+                f'Experiment template "{body.name}" already exists for this sample',
             )
         return _to_detail(row)
 
@@ -286,7 +305,7 @@ async def upsert_pdf_template(
         span.set_attribute("lineage.id", str(lineage_id))
 
         current = await repo.get_current_template_by_lineage(
-            session, sample_id, lineage_id
+            session, sample_id, lineage_id, lock=True
         )
         if current is None:
             raise HTTPException(404, f'Template lineage "{lineage_id}" not found')

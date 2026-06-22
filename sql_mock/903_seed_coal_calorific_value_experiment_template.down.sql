@@ -4,11 +4,11 @@ SET
   description = 'Determine gross calorific value by bomb calorimetry',
   template    = '{
   "clientForm": {
-    "title": "Client Form",
+    "name": "Client Form",
     "questions": []
   },
   "labForm": {
-    "title": "Calorific Value Form",
+    "name": "Calorific Value Form",
     "description": "Record bomb calorimeter readings.",
     "questions": [
       {

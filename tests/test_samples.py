@@ -9,10 +9,10 @@ from tests.conftest import (CALORIFIC_TEMPLATE_ID, COAL_ID,
 
 _NEW_SAMPLE = {"name": "Test Sample", "description": "For testing"}
 _NEW_EXPERIMENT_TEMPLATE = {
-    "title": "Test Analysis",
+    "name": "Test Analysis",
     "description": "A test analysis",
-    "clientForm": {"title": "Client", "questions": []},
-    "labForm": {"title": "Test Form", "questions": []},
+    "clientForm": {"name": "Client", "questions": []},
+    "labForm": {"name": "Test Form", "questions": []},
     "calculations": {
         "x": {"formula": "values['a'] + values['b']", "result": ""},
     },
@@ -188,7 +188,7 @@ async def test_update_experiment_template_returns_200(client: AsyncClient):
         )
     ).json()
     lineage_id = created["lineage_id"]
-    updated = {**_NEW_EXPERIMENT_TEMPLATE, "title": "Updated Analysis"}
+    updated = {**_NEW_EXPERIMENT_TEMPLATE, "name": "Updated Analysis"}
     response = await client.put(
         f"/api/samples/{COAL_ID}/experiments/{lineage_id}", json=updated
     )
@@ -203,6 +203,58 @@ async def test_update_experiment_template_unknown_returns_404(client: AsyncClien
             json=_NEW_EXPERIMENT_TEMPLATE,
         )
     ).status_code == 404
+
+
+async def test_create_experiment_template_duplicate_id_across_forms_returns_422(
+    client: AsyncClient,
+):
+    body = {
+        **_NEW_EXPERIMENT_TEMPLATE,
+        "name": "__dup_id_across_forms",
+        "clientForm": {
+            "name": "C",
+            "questions": [{"id": "sample_id", "type": "string", "label": "Sample ID"}],
+        },
+        "labForm": {
+            "name": "L",
+            "questions": [{"id": "sample_id", "type": "number", "label": "Sample ID"}],
+        },
+        "calculations": {},
+    }
+    response = await client.post(f"/api/samples/{COAL_ID}/experiments", json=body)
+    assert response.status_code == 422
+    assert "sample_id" in response.json()["detail"]["errors"][0]
+
+
+async def test_create_experiment_template_duplicate_repeatable_group_child_id_returns_422(
+    client: AsyncClient,
+):
+    body = {
+        **_NEW_EXPERIMENT_TEMPLATE,
+        "name": "__dup_id_in_repeatable_group",
+        "clientForm": {"name": "C", "questions": []},
+        "labForm": {
+            "name": "L",
+            "questions": [
+                {"id": "reading_a", "type": "number", "label": "Top-level"},
+                {
+                    "id": "measurement",
+                    "type": "repeatable-group",
+                    "label": "Measurements",
+                    "config": {
+                        "count": 3,
+                        "questions": [
+                            {"id": "reading_a", "type": "number", "label": "Reading A"}
+                        ],
+                    },
+                },
+            ],
+        },
+        "calculations": {},
+    }
+    response = await client.post(f"/api/samples/{COAL_ID}/experiments", json=body)
+    assert response.status_code == 422
+    assert "reading_a" in response.json()["detail"]["errors"][0]
 
 
 # ---------------------------------------------------------------------------

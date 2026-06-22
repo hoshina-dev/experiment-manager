@@ -39,7 +39,7 @@ class FormQuestion(BaseModel):
 class FormDoc(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    title: str
+    name: str
     description: str | None = None
     questions: list[FormQuestion]
 
@@ -76,6 +76,7 @@ class ExperimentTemplateDetail(BaseModel):
     id: UUID
     lineage_id: UUID
     name: str
+    description: str | None = None
     version: int
     is_current: bool
 
@@ -119,14 +120,14 @@ class SampleUpdate(BaseModel):
 
 
 _PROXIMATE_EXAMPLE: dict[str, Any] = {
-    "title": "Proximate Analysis",
+    "name": "Proximate Analysis",
     "description": "Determine moisture, ash, volatile matter, and fixed carbon content",
     "clientForm": {
-        "title": "Client Intake",
+        "name": "Client Intake",
         "questions": [],
     },
     "labForm": {
-        "title": "Proximate Analysis Form",
+        "name": "Proximate Analysis Form",
         "description": "Record masses at each stage of the proximate analysis procedure.",
         "questions": [
             {
@@ -195,7 +196,7 @@ _PROXIMATE_EXAMPLE: dict[str, Any] = {
 class ExperimentTemplateCreate(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": _PROXIMATE_EXAMPLE})
 
-    title: str
+    name: str
     description: str | None = None
     clientForm: FormDoc
     labForm: FormDoc
@@ -205,7 +206,7 @@ class ExperimentTemplateCreate(BaseModel):
 class ExperimentTemplateUpdate(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": _PROXIMATE_EXAMPLE})
 
-    title: str
+    name: str
     description: str | None = None
     clientForm: FormDoc
     labForm: FormDoc
@@ -236,11 +237,11 @@ class ExperimentCreate(BaseModel):
 _EXPERIMENT_UPDATE_EXAMPLE: dict[str, Any] = {
     "example": {
         "clientForm": {
-            "title": "Client Intake",
+            "name": "Client Intake",
             "questions": [],
         },
         "labForm": {
-            "title": "Proximate Analysis Form",
+            "name": "Proximate Analysis Form",
             "questions": [
                 {
                     "id": "crucible_mass",

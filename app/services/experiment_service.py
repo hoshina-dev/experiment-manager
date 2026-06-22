@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.repositories.experiment_repository as experiment_repo
 import app.repositories.sample_repository as sample_repo
 from app.db_models import ExperimentTemplate
-from app.models import (ExperimentCreate, ExperimentDetail,
+from app.models import (Calculation, ExperimentCreate, ExperimentDetail,
                         ExperimentsListResponse, ExperimentSummary,
-                        ExperimentUpdate, ReportDownloadResponse)
+                        ExperimentUpdate, FormDoc, ReportDownloadResponse)
 from app.pdf.r2_client import presign_download
 from app.report_worker import ReportJob
 from app.validation import FormSchemaError, validate_form
@@ -72,7 +72,7 @@ async def create_experiment(
             )
 
         template_row = await sample_repo.get_current_template_by_lineage(
-            session, body.sample_id, body.lineage_id
+            session, body.sample_id, body.lineage_id, lock=True
         )
         if template_row is None:
             raise HTTPException(
@@ -109,6 +109,48 @@ async def get_experiment(session: AsyncSession, exp_id: uuid.UUID) -> Experiment
         return _row_to_detail(row)
 
 
+def _assert_no_template_drift(body: ExperimentUpdate, template: dict) -> None:
+    """clientForm/labForm/calculations are owned by the template, not the
+    client — reject a PUT if they no longer match (frontend bug or tamper),
+    rather than silently persisting whatever was sent. `result` is excluded
+    from the calculations comparison since only `/calculate` may write it.
+    """
+    canonical_client = FormDoc(**template["clientForm"]).model_dump(exclude_none=True)
+    canonical_lab = FormDoc(**template["labForm"]).model_dump(exclude_none=True)
+    canonical_calc = {
+        name: Calculation(**calc).model_dump(exclude_none=True, exclude={"result"})
+        for name, calc in template["calculations"].items()
+    }
+
+    submitted_client = body.clientForm.model_dump(exclude_none=True)
+    submitted_lab = body.labForm.model_dump(exclude_none=True)
+    submitted_calc = {
+        name: calc.model_dump(exclude_none=True, exclude={"result"})
+        for name, calc in body.calculations.items()
+    }
+
+    drift: list[str] = []
+    if submitted_client != canonical_client:
+        drift.append("clientForm")
+    if submitted_lab != canonical_lab:
+        drift.append("labForm")
+    for name in sorted(set(canonical_calc) | set(submitted_calc)):
+        if submitted_calc.get(name) != canonical_calc.get(name):
+            drift.append(f"calculations.{name}")
+
+    if drift:
+        raise HTTPException(
+            422,
+            {
+                "message": "Submitted clientForm/labForm/calculations no "
+                "longer match this experiment's template. Only 'values' "
+                "can be updated via this endpoint — re-fetch the "
+                "experiment to get the canonical form.",
+                "drift": drift,
+            },
+        )
+
+
 async def update_experiment(
     session: AsyncSession, exp_id: uuid.UUID, body: ExperimentUpdate
 ) -> ExperimentDetail:
@@ -117,14 +159,25 @@ async def update_experiment(
         existing = await experiment_repo.get(session, exp_id)
         if existing is None:
             raise HTTPException(404, f'Experiment "{exp_id}" not found')
+
+        template_row = await sample_repo.get_template(
+            session,
+            uuid.UUID(existing.state["sample_id"]),
+            uuid.UUID(existing.state["template_id"]),
+        )
+        if template_row is None:
+            raise HTTPException(
+                404,
+                f'Experiment template "{existing.state["template_id"]}" backing this experiment no longer exists',
+            )
+
+        _assert_no_template_drift(body, template_row.template)
+
         context = {
             **existing.state,
-            "clientForm": body.clientForm.model_dump(),
-            "labForm": body.labForm.model_dump(),
-            "calculations": {
-                name: calc.model_dump(exclude_none=True)
-                for name, calc in body.calculations.items()
-            },
+            "clientForm": template_row.template["clientForm"],
+            "labForm": template_row.template["labForm"],
+            "calculations": template_row.template["calculations"],
             "values": body.values,
         }
         try:

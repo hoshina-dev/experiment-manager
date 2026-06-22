@@ -124,8 +124,80 @@ def test_eval_later_expression_references_earlier() -> None:
     assert result["quadrupled"] == 20
 
 
+def test_eval_resolves_dependency_regardless_of_declaration_order() -> None:
+    # "total" is declared before "half" but depends on it — dict/JSON
+    # insertion order says this should fail, dependency order says it's
+    # fine. Evaluation must follow the dependency graph, not declaration
+    # order, since nothing upstream of this function (JSONB columns,
+    # Python dicts, a future non-Python rewrite) is guaranteed to preserve
+    # insertion order at all.
+    result = _eval_calculations(
+        {"x": 10},
+        {
+            "total": "half * 2",
+            "half": "values['x'] / 2",
+        },
+    )
+    assert result == {"half": 5.0, "total": 10.0}
+
+
+def test_eval_resolves_multiple_levels_of_dependency_in_any_order() -> None:
+    result = _eval_calculations(
+        {"x": 2},
+        {
+            "quadrupled": "doubled * 2",
+            "octupled": "quadrupled * 2",
+            "doubled": "values['x'] * 2",
+        },
+    )
+    assert result == {"doubled": 4, "quadrupled": 8, "octupled": 16}
+
+
+def test_eval_raises_422_on_circular_dependency() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        _eval_calculations(
+            {},
+            {"a": "b + 1", "b": "a + 1"},
+        )
+    assert exc_info.value.status_code == 422
+    assert "Circular dependency" in exc_info.value.detail
+    assert "a" in exc_info.value.detail
+    assert "b" in exc_info.value.detail
+
+
 def test_eval_empty_calculations_returns_empty() -> None:
     assert _eval_calculations({"x": 1}, {}) == {}
+
+
+def test_eval_coerces_numeric_strings_before_arithmetic() -> None:
+    # Reproduces the reported bug: a "number"-type question answered with a
+    # JSON string (e.g. a worker form that round-trips values as text)
+    # used to blow up with "unsupported operand type(s) for -: 'str' and
+    # 'str'" instead of computing 30.17 - 24.82. The schema's `answerValue`
+    # legitimately allows strings for any key (`experiment.schema.json`),
+    # so the calculation engine — not the schema — is responsible for
+    # parsing a numeric-looking value before doing arithmetic on it.
+    result = _eval_calculations(
+        {"temperature_final": "30.17", "temperature_initial": "24.82"},
+        {"delta_T": "values['temperature_final'] - values['temperature_initial']"},
+    )
+    assert result["delta_T"] == pytest.approx(5.35)
+
+
+def test_eval_coerces_numeric_strings_inside_a_list() -> None:
+    result = _eval_calculations(
+        {"reading_a": ["10.0", "12.0", "11.0"]},
+        {"avg": "round(mean(values['reading_a']), 2)"},
+    )
+    assert result["avg"] == 11.0
+
+
+def test_eval_leaves_non_numeric_strings_untouched() -> None:
+    result = _eval_calculations(
+        {"sample_id": "SOIL-2026-0007"},
+        {"label": "f\"Sample: {values['sample_id']}\""},
+    )
+    assert result["label"] == "Sample: SOIL-2026-0007"
 
 
 def test_eval_ternary_expression() -> None:

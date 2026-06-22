@@ -15,7 +15,7 @@ SELECT
     jsonb_set(
     '{
   "clientForm": {
-    "title": "Sample Information",
+    "name": "Sample Information",
     "description": "Details of the specimen submitted for analysis.",
     "questions": [
       {
@@ -75,7 +75,7 @@ SELECT
     ]
   },
   "labForm": {
-    "title": "Analyst Details",
+    "name": "Analyst Details",
     "description": "Completed by the laboratory analyst after measurement.",
     "questions": [
       {

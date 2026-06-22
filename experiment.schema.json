@@ -16,9 +16,9 @@
   "$defs": {
     "formDoc": {
       "type": "object",
-      "required": ["title", "questions"],
+      "required": ["name", "questions"],
       "properties": {
-        "title": { "type": "string" },
+        "name": { "type": "string" },
         "description": { "type": "string" },
         "questions": {
           "type": "array",

@@ -19,6 +19,7 @@ COAL_ID = uuid.UUID("a1b2c3d4-0002-0002-0002-000000000002")
 TOMATO_ID = uuid.UUID("a1b2c3d4-0001-0001-0001-000000000001")
 PROXIMATE_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0001-0001-0001-000000000001")
 CALORIFIC_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0002-0002-0002-000000000002")
+DIVISOR_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0003-0003-0003-000000000003")
 
 
 @pytest.fixture(scope="session")
@@ -63,8 +64,8 @@ async def seed_catalogue(test_engine):
                     version=1,
                     is_current=True,
                     template={
-                        "clientForm": {"title": "Client", "questions": []},
-                        "labForm": {"title": "Proximate Form", "questions": []},
+                        "clientForm": {"name": "Client", "questions": []},
+                        "labForm": {"name": "Proximate Form", "questions": []},
                         "calculations": {
                             "result": {
                                 "formula": "values['value'] * 100",
@@ -82,11 +83,30 @@ async def seed_catalogue(test_engine):
                     version=1,
                     is_current=True,
                     template={
-                        "clientForm": {"title": "Client", "questions": []},
-                        "labForm": {"title": "Calorific Form", "questions": []},
+                        "clientForm": {"name": "Client", "questions": []},
+                        "labForm": {"name": "Calorific Form", "questions": []},
                         "calculations": {
                             "gcv": {
                                 "formula": "values['value'] * 4.1868",
+                                "result": "",
+                            }
+                        },
+                    },
+                ),
+                ExperimentTemplate(
+                    id=DIVISOR_TEMPLATE_ID,
+                    lineage_id=DIVISOR_TEMPLATE_ID,
+                    sample_type_id=COAL_ID,
+                    name="Divisor Check",
+                    description="Template whose only calculation divides by a worker-supplied value",
+                    version=1,
+                    is_current=True,
+                    template={
+                        "clientForm": {"name": "Client", "questions": []},
+                        "labForm": {"name": "Form", "questions": []},
+                        "calculations": {
+                            "bad": {
+                                "formula": "1 / values['value']",
                                 "result": "",
                             }
                         },

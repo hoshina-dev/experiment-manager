@@ -4,7 +4,7 @@ SELECT st.id,
        'Bomb-calorimeter determination of specific and molar heat capacity',
        '{
   "clientForm": {
-    "title": "Sample Information",
+    "name": "Sample Information",
     "description": "Details of the specimen submitted for analysis.",
     "questions": [
       {
@@ -64,7 +64,7 @@ SELECT st.id,
     ]
   },
   "labForm": {
-    "title": "Analyst Details",
+    "name": "Analyst Details",
     "description": "Completed by the laboratory analyst after measurement.",
     "questions": [
       {

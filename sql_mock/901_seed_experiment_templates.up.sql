@@ -2,7 +2,7 @@ INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Proximate Analysis', 'Determine moisture, ash, volatile matter, and fixed carbon content',
 '{
   "clientForm": {
-    "title": "Select Analyses",
+    "name": "Select Analyses",
     "description": "Choose which analyses are required for this coal submission.",
     "questions": [
       {
@@ -33,7 +33,7 @@ SELECT id, 'Proximate Analysis', 'Determine moisture, ash, volatile matter, and 
     ]
   },
   "labForm": {
-    "title": "Proximate Analysis Form",
+    "name": "Proximate Analysis Form",
     "description": "Record masses at each stage of the proximate analysis procedure.",
     "questions": [
       {
@@ -138,7 +138,7 @@ INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Calorific Value (GCV)', 'Determine gross calorific value by bomb calorimetry',
 '{
   "clientForm": {
-    "title": "Select Analyses",
+    "name": "Select Analyses",
     "description": "Choose which analyses are required for this coal submission.",
     "questions": [
       {
@@ -169,7 +169,7 @@ SELECT id, 'Calorific Value (GCV)', 'Determine gross calorific value by bomb cal
     ]
   },
   "labForm": {
-    "title": "Calorific Value Form",
+    "name": "Calorific Value Form",
     "description": "Record bomb calorimeter readings.",
     "questions": [
       {
@@ -246,7 +246,7 @@ INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Sulfur Content Analysis', 'Determine total sulfur content by titrimetric method',
 '{
   "clientForm": {
-    "title": "Select Analyses",
+    "name": "Select Analyses",
     "description": "Choose which analyses are required for this coal submission.",
     "questions": [
       {
@@ -277,7 +277,7 @@ SELECT id, 'Sulfur Content Analysis', 'Determine total sulfur content by titrime
     ]
   },
   "labForm": {
-    "title": "Sulfur Analysis Form",
+    "name": "Sulfur Analysis Form",
     "description": "Record sample mass and titration volumes.",
     "questions": [
       {
@@ -354,7 +354,7 @@ INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Moisture Analysis', 'Determine moisture content by drying method',
 '{
   "clientForm": {
-    "title": "Select Analyses",
+    "name": "Select Analyses",
     "description": "Choose which analyses are required for this tomato submission.",
     "questions": [
       {
@@ -376,7 +376,7 @@ SELECT id, 'Moisture Analysis', 'Determine moisture content by drying method',
     ]
   },
   "labForm": {
-    "title": "Moisture Analysis Form",
+    "name": "Moisture Analysis Form",
     "description": "Record tray and sample masses before and after drying.",
     "questions": [
       {
@@ -457,7 +457,7 @@ INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'pH Measurement', 'Measure hydrogen ion concentration in water sample',
 '{
   "clientForm": {
-    "title": "Select Analyses",
+    "name": "Select Analyses",
     "description": "Choose which analyses are required for this water submission.",
     "questions": [
       {
@@ -484,7 +484,7 @@ SELECT id, 'pH Measurement', 'Measure hydrogen ion concentration in water sample
     ]
   },
   "labForm": {
-    "title": "pH Measurement Form",
+    "name": "pH Measurement Form",
     "description": "Record pH meter readings for the water sample.",
     "questions": [
       {
@@ -551,7 +551,7 @@ INSERT INTO experiment_templates (sample_type_id, name, description, template)
 SELECT id, 'Turbidity Measurement', 'Measure water clarity using a nephelometric turbidimeter (NTU)',
 '{
   "clientForm": {
-    "title": "Select Analyses",
+    "name": "Select Analyses",
     "description": "Choose which analyses are required for this water submission.",
     "questions": [
       {
@@ -578,7 +578,7 @@ SELECT id, 'Turbidity Measurement', 'Measure water clarity using a nephelometric
     ]
   },
   "labForm": {
-    "title": "Turbidity Form",
+    "name": "Turbidity Form",
     "description": "Record turbidimeter readings.",
     "questions": [
       {

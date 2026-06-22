@@ -12,7 +12,7 @@ SELECT st.id,
        'Eight paired Instrument A/B readings with list-aware precision calculations',
        '{
   "clientForm": {
-    "title": "Material Sample — Experiment Registration",
+    "name": "Material Sample — Experiment Registration",
     "description": "Generic information about the experiment and the sample under test.",
     "questions": [
       {
@@ -78,7 +78,7 @@ SELECT st.id,
     ]
   },
   "labForm": {
-    "title": "Material Sample — Measurement Run",
+    "name": "Material Sample — Measurement Run",
     "description": "Measure the same sample 8 times, recording a reading from Instrument A and Instrument B each time. Per-measurement precision is computed by the system.",
     "questions": [
       {

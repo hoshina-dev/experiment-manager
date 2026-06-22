@@ -14,11 +14,11 @@ SELECT
   jsonb_set(
     jsonb_set('{
   "clientForm": {
-    "title": "Client Form",
+    "name": "Client Form",
     "questions": []
   },
   "labForm": {
-    "title": "GCV Measurement Form",
+    "name": "GCV Measurement Form",
     "description": "Record bomb calorimeter readings and analyst information.",
     "questions": [
       {

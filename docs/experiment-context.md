@@ -11,7 +11,10 @@ POST /api/experiments
   └─ context initialised from experiment template (frozen snapshot)
 
 PUT /api/experiments/{exp_id}
-  └─ worker updates clientForm, labForm, calculations, and values
+  └─ worker sends the full slice back, but only `values` is actually
+     applied — clientForm/labForm/calculations must match the experiment's
+     template byte-for-byte (result excluded) or the request is rejected
+     with 422. See "PUT body" below.
 
 POST /api/experiments/{exp_id}/calculate
   └─ server evaluates calculations → writes result on each calculation object
@@ -32,8 +35,8 @@ POST /api/experiments/{exp_id}/report/generate
   "lineage_id":   "uuid",
   "name":         "string",
   "description":  "string",
-  "clientForm":   { "title": "...", "questions": [ ... ] },
-  "labForm":      { "title": "...", "questions": [ ... ] },
+  "clientForm":   { "name": "...", "questions": [ ... ] },
+  "labForm":      { "name": "...", "questions": [ ... ] },
   "calculations": { "var_name": { "formula": "...", "result": 42.0 } },
   "values":       { "question_id": 1.234 }
 }
@@ -49,10 +52,10 @@ POST /api/experiments/{exp_id}/report/generate
 | `lineage_id` | UUID string | Server at creation | Template lineage id. Frozen at creation. |
 | `name` | string | DB column at creation | Display name from `experiment_templates.name`. Frozen at creation. |
 | `description` | string | DB column at creation | Description from `experiment_templates.description`. Frozen at creation. |
-| `clientForm` | object | Experiment template + worker PUT | Pre-analysis form (client intake). |
-| `labForm` | object | Experiment template + worker PUT | Lab measurement form. Required. |
-| `calculations` | object | Experiment template + worker PUT | Map of `{ formula, result? }`. Formulas are Python expressions. |
-| `values` | object | Worker via PUT | Collected answers keyed by question id. Repeatable-group children use columnar arrays. |
+| `clientForm` | object | Experiment template only | Pre-analysis form (client intake). PUT must echo this unchanged; the server re-derives it from the template either way. |
+| `labForm` | object | Experiment template only | Lab measurement form. Required. PUT must echo this unchanged; the server re-derives it from the template either way. |
+| `calculations` | object | Experiment template (`formula`) + `/calculate` (`result`) | Map of `{ formula, result? }`. Formulas are Python expressions. PUT cannot set `result` — only `/calculate` writes it. |
+| `values` | object | Worker via PUT | Collected answers keyed by question id. Repeatable-group children use columnar arrays. The only field PUT actually changes. |
 
 Template JSONB (`experiment_templates.template`) stores only `clientForm`, `labForm`, and `calculations` — no duplicate `name`/`description`.
 
@@ -64,7 +67,7 @@ Both forms share the same structure:
 
 ```json
 {
-  "title": "string",
+  "name": "string",
   "description": "string",
   "questions": [
     {
@@ -124,7 +127,8 @@ When the PDF engine builds its render context, `calculations[name].result` is us
 
 ## PUT body
 
-Send the full updatable slice:
+The request body still requires the full slice (no API contract break for
+existing clients), but only `values` is ever persisted:
 
 ```json
 {
@@ -134,5 +138,22 @@ Send the full updatable slice:
   "values": { "sample_mass": 1.023 }
 }
 ```
+
+`clientForm`, `labForm`, and each calculation's `formula` are validated
+against the experiment's own template (looked up by the frozen
+`template_id`, not the lineage's current version — an older experiment
+keeps using the template version it was created against, even if the
+lineage has since been edited). Any `result` value in `calculations` is
+ignored — only `POST /calculate` may set it. If the submitted
+clientForm/labForm/calculations don't match the template, the request
+fails with **422** rather than silently persisting whatever was sent; the
+correct recovery is to `GET` the experiment again and resend its current
+shape with just `values` changed.
+
+This exists because the server previously trusted these fields verbatim:
+a buggy frontend (or a malicious client) could silently rewrite an
+experiment's question/formula definitions, or fabricate a `calculations.result`
+that was never actually computed by `/calculate` — and that fabricated value
+would render into the generated PDF report as if it were real.
 
 Frozen fields (`id`, `sample_id`, `template_id`, `lineage_id`, `name`, `description`) are preserved from the existing context.
