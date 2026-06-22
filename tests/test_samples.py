@@ -205,6 +205,58 @@ async def test_update_experiment_template_unknown_returns_404(client: AsyncClien
     ).status_code == 404
 
 
+async def test_create_experiment_template_duplicate_id_across_forms_returns_422(
+    client: AsyncClient,
+):
+    body = {
+        **_NEW_EXPERIMENT_TEMPLATE,
+        "name": "__dup_id_across_forms",
+        "clientForm": {
+            "name": "C",
+            "questions": [{"id": "sample_id", "type": "string", "label": "Sample ID"}],
+        },
+        "labForm": {
+            "name": "L",
+            "questions": [{"id": "sample_id", "type": "number", "label": "Sample ID"}],
+        },
+        "calculations": {},
+    }
+    response = await client.post(f"/api/samples/{COAL_ID}/experiments", json=body)
+    assert response.status_code == 422
+    assert "sample_id" in response.json()["detail"]["errors"][0]
+
+
+async def test_create_experiment_template_duplicate_repeatable_group_child_id_returns_422(
+    client: AsyncClient,
+):
+    body = {
+        **_NEW_EXPERIMENT_TEMPLATE,
+        "name": "__dup_id_in_repeatable_group",
+        "clientForm": {"name": "C", "questions": []},
+        "labForm": {
+            "name": "L",
+            "questions": [
+                {"id": "reading_a", "type": "number", "label": "Top-level"},
+                {
+                    "id": "measurement",
+                    "type": "repeatable-group",
+                    "label": "Measurements",
+                    "config": {
+                        "count": 3,
+                        "questions": [
+                            {"id": "reading_a", "type": "number", "label": "Reading A"}
+                        ],
+                    },
+                },
+            ],
+        },
+        "calculations": {},
+    }
+    response = await client.post(f"/api/samples/{COAL_ID}/experiments", json=body)
+    assert response.status_code == 422
+    assert "reading_a" in response.json()["detail"]["errors"][0]
+
+
 # ---------------------------------------------------------------------------
 # DELETE /api/samples/{sample_id}/experiments/{template_id}
 # ---------------------------------------------------------------------------

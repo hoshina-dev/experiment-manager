@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.repositories.experiment_repository as experiment_repo
 import app.repositories.sample_repository as repo
 from app.db_models import ExperimentTemplate
+from app.form_schema import find_duplicate_question_ids
 from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
                         ExperimentTemplateHistoryResponse,
                         ExperimentTemplatesResponse, ExperimentTemplateSummary,
@@ -19,6 +20,21 @@ from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
 from app.validation import FormSchemaError, validate_form
 
 tracer = trace.get_tracer(__name__)
+
+
+def _assert_no_duplicate_question_ids(template_data: dict) -> None:
+    duplicates = find_duplicate_question_ids(template_data)
+    if duplicates:
+        raise HTTPException(
+            422,
+            {
+                "message": "Experiment template violates schema",
+                "errors": [
+                    f"Question id(s) used more than once across "
+                    f"clientForm/labForm: {', '.join(duplicates)}"
+                ],
+            },
+        )
 
 
 def _template_jsonb(body: ExperimentTemplateCreate | ExperimentTemplateUpdate) -> dict:
@@ -178,6 +194,7 @@ async def create_experiment_template(
                     "errors": exc.errors,
                 },
             )
+        _assert_no_duplicate_question_ids(template_data)
         try:
             row = await repo.create_template(
                 session, sample_id, body.name, body.description, template_data
@@ -221,6 +238,7 @@ async def update_experiment_template(
                     "errors": exc.errors,
                 },
             )
+        _assert_no_duplicate_question_ids(template_data)
         has_experiments = await experiment_repo.any_experiment_uses_template(
             session, current.id
         )

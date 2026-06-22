@@ -9,7 +9,16 @@ from typing import Any
 CalcResult = str | int | float | bool | None | list[Any]
 
 
-def iter_questions(form: dict[str, Any] | None) -> list[dict[str, Any]]:
+def iter_questions(
+    form: dict[str, Any] | None, expand_repeatable_groups: bool = True
+) -> list[dict[str, Any]]:
+    """Top-level questions in `form`. By default also flattens a
+    repeatable-group's child questions into the result (useful for callers
+    that just want every question id, e.g. duplicate-id detection). Pass
+    `expand_repeatable_groups=False` for callers that need to handle a
+    group's children themselves — e.g. to apply `config.count` when filling
+    in defaults, which flattening would lose.
+    """
     if not isinstance(form, dict):
         return []
     questions = form.get("questions")
@@ -20,7 +29,7 @@ def iter_questions(form: dict[str, Any] | None) -> list[dict[str, Any]]:
         if not isinstance(q, dict):
             continue
         out.append(q)
-        if q.get("type") == "repeatable-group":
+        if expand_repeatable_groups and q.get("type") == "repeatable-group":
             config = q.get("config") or {}
             children = config.get("questions") if isinstance(config, dict) else None
             if isinstance(children, list):
@@ -28,14 +37,20 @@ def iter_questions(form: dict[str, Any] | None) -> list[dict[str, Any]]:
     return out
 
 
-def collect_question_ids(state: dict[str, Any]) -> set[str]:
-    ids: set[str] = set()
+def find_duplicate_question_ids(state: dict[str, Any]) -> list[str]:
+    """Question ids used more than once across clientForm + labForm
+    (including repeatable-group children). The schema documents ids as
+    unique across both forms, but JSON Schema's `uniqueItems` only applies
+    within a single array — it can't see across clientForm and labForm —
+    so this has to be checked separately.
+    """
+    seen: dict[str, int] = {}
     for form_key in ("clientForm", "labForm"):
         for q in iter_questions(state.get(form_key)):
             q_id = q.get("id")
             if isinstance(q_id, str):
-                ids.add(q_id)
-    return ids
+                seen[q_id] = seen.get(q_id, 0) + 1
+    return sorted(q_id for q_id, count in seen.items() if count > 1)
 
 
 def _question_default(q: dict[str, Any]) -> Any:
@@ -48,7 +63,10 @@ def _question_default(q: dict[str, Any]) -> Any:
 def collect_values(state: dict[str, Any]) -> dict[str, Any]:
     values = dict(state.get("values") or {})
     for form_key in ("clientForm", "labForm"):
-        for q in iter_questions(state.get(form_key)):
+        for q in iter_questions(state.get(form_key), expand_repeatable_groups=False):
+            if q.get("type") == "repeatable-group":
+                _collect_repeatable_group_defaults(q, values)
+                continue
             q_id = q.get("id")
             if not isinstance(q_id, str) or q_id in values:
                 continue
@@ -56,6 +74,31 @@ def collect_values(state: dict[str, Any]) -> dict[str, Any]:
             if default is not None:
                 values[q_id] = default
     return values
+
+
+def _collect_repeatable_group_defaults(
+    group: dict[str, Any], values: dict[str, Any]
+) -> None:
+    """Columnar storage: a child's `config.default` fills every repetition,
+    not just one bare scalar — `config.count` says how many entries the
+    column needs.
+    """
+    config = group.get("config") or {}
+    if not isinstance(config, dict):
+        return
+    count = config.get("count")
+    children = config.get("questions")
+    if not isinstance(count, int) or not isinstance(children, list):
+        return
+    for child in children:
+        if not isinstance(child, dict):
+            continue
+        child_id = child.get("id")
+        if not isinstance(child_id, str) or child_id in values:
+            continue
+        default = _question_default(child)
+        if default is not None:
+            values[child_id] = [default] * count
 
 
 def calculation_formulas(calculations: dict[str, Any] | None) -> dict[str, str]:
