@@ -17,9 +17,9 @@ def _referenced_names(expr: str) -> set[str]:
     """Identifier names a formula references — used only to find which
     *other calculations* it depends on, not to evaluate anything."""
     try:
-        tree = ast.parse(expr, mode="eval")
+        tree = ast.parse(expr, mode="exec")
     except SyntaxError:
-        return set()  # let eval() surface the real syntax error later
+        return set()  # let the evaluator surface the real syntax error later
     return {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
 
 
@@ -74,6 +74,30 @@ def _coerce_numeric(value: Any) -> Any:
     return value
 
 
+def _eval_formula(expr: str, namespace: dict[str, Any]) -> Any:
+    """Evaluate a formula that may be a single expression or multi-line code.
+
+    Leading statements run with exec; the final statement, if it is an
+    expression, is evaluated and returned (so plain single-expression formulas
+    behave exactly as before). Multi-line code that does not end in an
+    expression must assign its output to a `result` variable.
+    """
+    restricted = {"__builtins__": {}}
+    tree = ast.parse(expr, mode="exec")
+    if tree.body and isinstance(tree.body[-1], ast.Expr):
+        final = tree.body.pop()
+        if tree.body:
+            exec(compile(tree, "<formula>", "exec"), restricted, namespace)  # noqa: S102
+        return eval(  # noqa: S307
+            compile(ast.Expression(final.value), "<formula>", "eval"),
+            restricted,
+            namespace,
+        )
+    namespace.pop("result", None)
+    exec(compile(tree, "<formula>", "exec"), restricted, namespace)  # noqa: S102
+    return namespace.get("result")
+
+
 def _eval_calculations(
     values: dict[str, Any], formulas: dict[str, str]
 ) -> dict[str, Any]:
@@ -88,7 +112,7 @@ def _eval_calculations(
                 422, f"Invalid expression in '{name}': dunder access not allowed"
             )
         try:
-            value = eval(expr, {"__builtins__": {}}, namespace)  # noqa: S307
+            value = _eval_formula(expr, namespace)
         except ZeroDivisionError:
             raise HTTPException(422, f"Division by zero in '{name}'")
         except NameError as exc:

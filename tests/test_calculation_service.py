@@ -206,3 +206,48 @@ def test_eval_ternary_expression() -> None:
         {"label": "100 if values['flag'] == 1 else 0"},
     )
     assert result["label"] == 100
+
+
+def test_eval_multiline_ending_in_expression() -> None:
+    result = _eval_calculations(
+        {"tray_mass": 100.0, "tray_sam": 120.0},
+        {"sample_mass": "loss = values['tray_sam'] - values['tray_mass']\nround(loss, 1)"},
+    )
+    assert result["sample_mass"] == 20.0
+
+
+def test_eval_multiline_result_variable() -> None:
+    result = _eval_calculations(
+        {"x": 3},
+        {"y": "tmp = values['x'] + 2\nresult = tmp * 10"},
+    )
+    assert result["y"] == 50
+
+
+def test_eval_multiline_references_earlier_calculation() -> None:
+    result = _eval_calculations(
+        {"x": 5},
+        {
+            "doubled": "values['x'] * 2",
+            "scaled": "base = doubled + 1\nbase * 3",
+        },
+    )
+    assert result["doubled"] == 10
+    assert result["scaled"] == 33
+
+
+def test_eval_multiline_comprehension_with_builtins() -> None:
+    result = _eval_calculations(
+        {"a": [10.0, 12.0], "b": [10.0, 11.0]},
+        {
+            "diffs": "pairs = zip(values['a'], values['b'])\n[round(x - y, 2) for x, y in pairs]",
+        },
+    )
+    assert result["diffs"] == [0.0, 1.0]
+
+
+def test_eval_raises_422_on_multiline_syntax_error() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        _eval_calculations({}, {"r": "x =\n+ 1"})
+    assert exc_info.value.status_code == 422
+    assert "Calculation error" in exc_info.value.detail
