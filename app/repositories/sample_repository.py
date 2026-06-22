@@ -78,14 +78,26 @@ async def get_template(
 
 
 async def get_current_template_by_lineage(
-    session: AsyncSession, sample_type_id: uuid.UUID, lineage_id: uuid.UUID
+    session: AsyncSession,
+    sample_type_id: uuid.UUID,
+    lineage_id: uuid.UUID,
+    lock: bool = False,
 ) -> ExperimentTemplate | None:
     """Fetch the current version of a template by lineage_id.
 
     Eagerly loads pdf_template so callers can access it without triggering
     async lazy loading (which raises MissingGreenlet in SQLAlchemy async).
+
+    `lock=True` takes a `SELECT ... FOR UPDATE` row lock, held until the
+    caller's transaction commits/rolls back. Every caller that decides
+    in-place-mutate-vs-fork based on "does an experiment reference this row
+    yet" (`update_experiment_template`, `upsert_pdf_template`) and every
+    caller that creates an experiment against this row (`create_experiment`)
+    must pass `lock=True` — they all need to serialize on the same row so
+    the has-experiments check can't go stale between reading it and acting
+    on it.
     """
-    result = await session.execute(
+    stmt = (
         select(ExperimentTemplate)
         .options(selectinload(ExperimentTemplate.pdf_template))
         .where(
@@ -95,6 +107,9 @@ async def get_current_template_by_lineage(
             ExperimentTemplate.deleted_at.is_(None),
         )
     )
+    if lock:
+        stmt = stmt.with_for_update()
+    result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
 

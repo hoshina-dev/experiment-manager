@@ -205,7 +205,7 @@ async def update_experiment_template(
         span.set_attribute("lineage.id", str(lineage_id))
 
         current = await repo.get_current_template_by_lineage(
-            session, sample_id, lineage_id
+            session, sample_id, lineage_id, lock=True
         )
         if current is None:
             raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
@@ -287,7 +287,7 @@ async def upsert_pdf_template(
         span.set_attribute("lineage.id", str(lineage_id))
 
         current = await repo.get_current_template_by_lineage(
-            session, sample_id, lineage_id
+            session, sample_id, lineage_id, lock=True
         )
         if current is None:
             raise HTTPException(404, f'Template lineage "{lineage_id}" not found')

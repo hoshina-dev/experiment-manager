@@ -117,6 +117,73 @@ async def test_update_experiment_unknown_returns_404(client: AsyncClient):
     ).status_code == 404
 
 
+async def test_update_experiment_drifted_calculation_formula_returns_422(
+    client: AsyncClient,
+):
+    await client.post("/api/experiments", json=_VALID_BODY)
+    drifted = {
+        **_STATE_WITH_VALUES,
+        "calculations": {
+            "result": {"formula": "values['value'] * 999", "result": ""},
+        },
+    }
+    response = await client.put(f"/api/experiments/{_EXP_ID}", json=drifted)
+    assert response.status_code == 422
+    drift = response.json()["detail"]["drift"]
+    assert drift == ["calculations.result"]
+
+
+async def test_update_experiment_drifted_labform_returns_422(client: AsyncClient):
+    await client.post("/api/experiments", json=_VALID_BODY)
+    drifted = {
+        **_STATE_WITH_VALUES,
+        "labForm": {"name": "Renamed Form", "questions": []},
+    }
+    response = await client.put(f"/api/experiments/{_EXP_ID}", json=drifted)
+    assert response.status_code == 422
+    drift = response.json()["detail"]["drift"]
+    assert drift == ["labForm"]
+
+
+async def test_update_experiment_drift_report_names_every_drifted_part(
+    client: AsyncClient,
+):
+    await client.post("/api/experiments", json=_VALID_BODY)
+    drifted = {
+        "clientForm": {"name": "Renamed Client", "questions": []},
+        "labForm": {"name": "Renamed Form", "questions": []},
+        "calculations": {
+            "result": {"formula": "values['value'] * 999", "result": ""},
+            "extra": {"formula": "1", "result": ""},
+        },
+        "values": {"value": 5},
+    }
+    response = await client.put(f"/api/experiments/{_EXP_ID}", json=drifted)
+    assert response.status_code == 422
+    drift = response.json()["detail"]["drift"]
+    assert drift == [
+        "clientForm",
+        "labForm",
+        "calculations.extra",
+        "calculations.result",
+    ]
+
+
+async def test_update_experiment_ignores_client_supplied_result(client: AsyncClient):
+    await client.post("/api/experiments", json=_VALID_BODY)
+    body_with_fabricated_result = {
+        **_STATE_WITH_VALUES,
+        "calculations": {
+            "result": {"formula": "values['value'] * 100", "result": 999999},
+        },
+    }
+    response = await client.put(
+        f"/api/experiments/{_EXP_ID}", json=body_with_fabricated_result
+    )
+    assert response.status_code == 200
+    assert response.json()["calculations"]["result"]["result"] == ""
+
+
 async def test_delete_experiment_returns_204(client: AsyncClient):
     await client.post("/api/experiments", json=_VALID_BODY)
     assert (await client.delete(f"/api/experiments/{_EXP_ID}")).status_code == 204
