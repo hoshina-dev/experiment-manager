@@ -129,6 +129,22 @@ Requires `TEST_DATA_SOURCE_NAME` in `.env`. The test suite creates its own schem
 | `POST` | `/api/experiments/{exp_id}/report/generate` | Enqueue PDF generation → 202 `{ "status": "pending" }` |
 | `GET` | `/api/experiments/{exp_id}/report/download` | Get presigned download URL → `{ "url": "...", "expires_in": 900 }` |
 
+## Localization
+
+PDF reports default to the **Noto Sans** font (`app/fonts/`, registered in
+`app/pdf/fonts.py`), which covers Latin Extended, Greek, and Cyrillic in a
+single embedded font. This means report text in any EU language — including
+ones with diacritics (Polish, Czech, Romanian, Lithuanian...), Greek, or
+Bulgarian Cyrillic — renders correctly without per-template font juggling.
+Templates can still opt into ReportLab's built-in `Helvetica`, `Times-Roman`,
+or `Courier` for ASCII-only content (see `docs/pdf-report-engine.md`).
+
+This covers **rendering** multilingual text, not full UI/string
+translation. There is currently no locale storage, no translated string
+resources, and no locale-aware date/number formatting — building that out
+(if ever needed) is a separate, larger effort tracked as future work, not
+implemented here.
+
 ## Data model
 
 An experiment's state is a flat JSON blob stored in Postgres. At creation it mirrors the template:

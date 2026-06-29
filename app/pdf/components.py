@@ -27,7 +27,7 @@ class Rect:
 
 @dataclass
 class TextStyle:
-    font: str = "Helvetica"
+    font: str = "Noto Sans"
     size: int = 12
     bold: bool = False
     italic: bool = False
@@ -87,7 +87,7 @@ def component_from_dict(data: dict[str, Any]) -> Component:
         rect = Rect.from_list(data["rect"])
         s = data.get("style", {})
         style = TextStyle(
-            font=s.get("font", "Helvetica"),
+            font=s.get("font", "Noto Sans"),
             size=s.get("size", 12),
             bold=s.get("bold", False),
             italic=s.get("italic", False),

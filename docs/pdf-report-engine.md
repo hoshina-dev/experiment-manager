@@ -96,7 +96,7 @@ Any string. May contain `{{field}}` placeholders. Newlines (`\n`) start a new pa
 
 | Field | Type | Default | Values |
 |---|---|---|---|
-| `font` | string | `"Helvetica"` | `"Helvetica"`, `"Times-Roman"`, `"Courier"` |
+| `font` | string | `"Noto Sans"` | `"Noto Sans"` (default — supports Latin Extended, Greek, Cyrillic), `"Helvetica"`, `"Times-Roman"`, `"Courier"` |
 | `size` | int | `12` | Points. Common: 8 (fine print), 10 (body), 12 (normal), 14–18 (subheading), 20–24 (hero) |
 | `bold` | bool | `false` | Appends `-Bold` to the font name |
 | `italic` | bool | `false` | Appends `-Oblique` (Helvetica) or `-Italic` (Times) |

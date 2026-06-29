@@ -14,6 +14,7 @@ from scalar_fastapi import get_scalar_api_reference
 from app.config import r2_settings, report_worker_settings, settings
 from app.database import async_session_factory
 from app.observability.telemetry import setup_telemetry
+from app.pdf.fonts import register_fonts
 from app.pdf.r2_client import check_connection
 from app.report_worker import ReportJob, report_worker
 from app.repositories import experiment_repository as experiment_repo
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    register_fonts()
     try:
         check_connection(r2_settings)
     except Exception as exc:
@@ -32,7 +34,9 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
             f"Check S3_ENDPOINT and S3_BUCKET. Error: {exc}"
         ) from None
     queue: asyncio.Queue = asyncio.Queue(maxsize=report_worker_settings.queue_max_size)
-    executor = ProcessPoolExecutor(max_workers=report_worker_settings.max_threads)
+    executor = ProcessPoolExecutor(
+        max_workers=report_worker_settings.max_threads, initializer=register_fonts
+    )
 
     async with async_session_factory() as session:
         orphaned = await experiment_repo.list_orphaned_reports(session)
