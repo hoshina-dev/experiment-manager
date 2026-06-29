@@ -1,7 +1,11 @@
 """Tests for app/pdf/fonts.py — Noto Sans registration for multilingual rendering."""
 
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
+
 from reportlab.pdfbase import pdfmetrics
 
+from app.pdf.components import TextStyle, component_from_dict
 from app.pdf.fonts import register_fonts
 from app.pdf.renderer import generate_pdf
 
@@ -44,3 +48,50 @@ def test_generate_pdf_renders_european_scripts_by_default():
     ]
     pdf_bytes = generate_pdf({}, components)
     assert pdf_bytes.startswith(b"%PDF")
+
+
+def _render_in_subprocess(components):
+    # Runs inside a worker process with a fresh font registry — only
+    # register_fonts() called via the executor's initializer (not anything
+    # inherited from the parent) makes this work.
+    return generate_pdf({}, components)
+
+
+def test_generate_pdf_works_in_fresh_subprocess_via_executor_initializer():
+    """Regression test for the spawn-method KeyError bug.
+
+    PDF rendering happens inside ProcessPoolExecutor worker subprocesses
+    (see app/report_worker.py), not in the parent FastAPI process. ReportLab's
+    font registry is process-local, in-memory state, so registering fonts
+    only in the parent (e.g. in main.py's lifespan) does not propagate to
+    worker subprocesses started with the "spawn" method — every platform
+    where "spawn" is the default (macOS today; everywhere from Python 3.14).
+    main.py must construct its ProcessPoolExecutor with
+    initializer=register_fonts so each worker registers fonts once at
+    startup. This test mirrors that exact construction, pinned to "spawn"
+    so it's meaningful regardless of platform default.
+    """
+    components = [
+        {
+            "id": "greeting",
+            "type": "text",
+            "rect": [50, 700, 500, 40],
+            "content": "Łódź — Ελληνικά — Кириллица",
+        }
+    ]
+    ctx = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(
+        max_workers=1, initializer=register_fonts, mp_context=ctx
+    ) as executor:
+        future = executor.submit(_render_in_subprocess, components)
+        pdf_bytes = future.result(timeout=30)
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_default_font_is_noto_sans():
+    """Guards against a future revert of the default font back to Helvetica."""
+    assert TextStyle().font == "Noto Sans"
+    comp = component_from_dict(
+        {"id": "x", "type": "text", "rect": [0, 0, 10, 10], "content": "hi"}
+    )
+    assert comp.style.font == "Noto Sans"

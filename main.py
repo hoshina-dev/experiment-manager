@@ -34,7 +34,9 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
             f"Check S3_ENDPOINT and S3_BUCKET. Error: {exc}"
         ) from None
     queue: asyncio.Queue = asyncio.Queue(maxsize=report_worker_settings.queue_max_size)
-    executor = ProcessPoolExecutor(max_workers=report_worker_settings.max_threads)
+    executor = ProcessPoolExecutor(
+        max_workers=report_worker_settings.max_threads, initializer=register_fonts
+    )
 
     async with async_session_factory() as session:
         orphaned = await experiment_repo.list_orphaned_reports(session)
