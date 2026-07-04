@@ -12,8 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from scalar_fastapi import get_scalar_api_reference
 
 from app.config import r2_settings, report_worker_settings, settings
-from app.database import async_session_factory
-from app.observability.telemetry import setup_telemetry
+from app.database import async_session_factory, engine
+from app.observability.telemetry import setup_telemetry, shutdown_telemetry
 from app.pdf.fonts import register_fonts
 from app.pdf.r2_client import check_connection
 from app.report_worker import ReportJob, report_worker
@@ -80,6 +80,10 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         with suppress(asyncio.CancelledError):
             await worker_task
         executor.shutdown(wait=False)
+        try:
+            shutdown_telemetry(getattr(_app.state, "otel_providers", None))
+        except Exception:
+            logger.exception("opentelemetry shutdown error")
 
 
 def create_app() -> FastAPI:
@@ -92,8 +96,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    setup_telemetry(
-        app, service_name="experiment-manager", otlp_endpoint=settings.otel_endpoint
+    app.state.otel_providers = setup_telemetry(
+        app,
+        enabled=settings.otel_enabled,
+        service_name=settings.otel_service_name,
+        otlp_endpoint=settings.otel_exporter_otlp_endpoint,
+        sqlalchemy_engine=engine.sync_engine,
     )
 
     app.include_router(samples.router)

@@ -15,7 +15,7 @@ attrs==26.1.0
     # via
     #   jsonschema
     #   referencing
-black==26.5.1
+black==26.3.1
 boto3==1.43.23
     # via experiment-manager
 botocore==1.43.23
@@ -26,11 +26,8 @@ certifi==2026.5.20
     # via
     #   httpcore
     #   httpx
-    #   requests
 charset-normalizer==3.4.7
-    # via
-    #   reportlab
-    #   requests
+    # via reportlab
 click==8.4.1
     # via
     #   black
@@ -43,9 +40,11 @@ colorama==0.4.6 ; sys_platform == 'win32'
 fastapi==0.136.3
     # via experiment-manager
 googleapis-common-protos==1.75.0
-    # via opentelemetry-exporter-otlp-proto-http
+    # via opentelemetry-exporter-otlp-proto-grpc
 greenlet==3.5.1
     # via sqlalchemy
+grpcio==1.81.1
+    # via opentelemetry-exporter-otlp-proto-grpc
 h11==0.16.0
     # via
     #   httpcore
@@ -59,7 +58,6 @@ idna==3.18
     # via
     #   anyio
     #   httpx
-    #   requests
 iniconfig==2.3.0
     # via pytest
 isort==8.0.1
@@ -76,37 +74,50 @@ mypy-extensions==1.1.0
 opentelemetry-api==1.42.1
     # via
     #   experiment-manager
-    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-botocore
     #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-instrumentation-sqlalchemy
+    #   opentelemetry-propagator-aws-xray
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
 opentelemetry-exporter-otlp-proto-common==1.42.1
-    # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.42.1
+    # via opentelemetry-exporter-otlp-proto-grpc
+opentelemetry-exporter-otlp-proto-grpc==1.42.1
     # via experiment-manager
 opentelemetry-instrumentation==0.63b1
     # via
     #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-botocore
     #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-instrumentation-sqlalchemy
 opentelemetry-instrumentation-asgi==0.63b1
     # via opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-botocore==0.63b1
+    # via experiment-manager
 opentelemetry-instrumentation-fastapi==0.63b1
     # via experiment-manager
+opentelemetry-instrumentation-sqlalchemy==0.63b1
+    # via experiment-manager
+opentelemetry-propagator-aws-xray==1.0.2
+    # via opentelemetry-instrumentation-botocore
 opentelemetry-proto==1.42.1
     # via
     #   opentelemetry-exporter-otlp-proto-common
-    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-sdk==1.42.1
     # via
     #   experiment-manager
-    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-semantic-conventions==0.63b1
     # via
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-botocore
     #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-instrumentation-sqlalchemy
     #   opentelemetry-sdk
 opentelemetry-util-http==0.63b1
     # via
@@ -116,6 +127,7 @@ packaging==26.2
     # via
     #   black
     #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-sqlalchemy
     #   pytest
 pathspec==1.1.1
     # via black
@@ -162,8 +174,6 @@ referencing==0.37.0
     #   jsonschema-specifications
 reportlab==4.5.1
     # via experiment-manager
-requests==2.34.2
-    # via opentelemetry-exporter-otlp-proto-http
 rpds-py==2026.5.1
     # via
     #   jsonschema
@@ -182,8 +192,9 @@ typing-extensions==4.15.0
     # via
     #   anyio
     #   fastapi
+    #   grpcio
     #   opentelemetry-api
-    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
     #   psycopg
@@ -202,9 +213,7 @@ typing-inspection==0.4.2
 tzdata==2026.2 ; sys_platform == 'win32'
     # via psycopg
 urllib3==2.7.0
-    # via
-    #   botocore
-    #   requests
+    # via botocore
 uvicorn==0.49.0
     # via experiment-manager
 uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
@@ -214,4 +223,7 @@ watchfiles==1.2.0
 websockets==16.0
     # via uvicorn
 wrapt==2.2.1
-    # via opentelemetry-instrumentation
+    # via
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-botocore
+    #   opentelemetry-instrumentation-sqlalchemy

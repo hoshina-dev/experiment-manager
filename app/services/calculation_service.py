@@ -4,13 +4,15 @@ import uuid
 from typing import Any
 
 from fastapi import HTTPException
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.form_schema import (CALC_BUILTINS, apply_calculation_results,
-                             calculation_formulas, collect_values)
+from app import form_schema
 from app.models import ExperimentDetail
 from app.repositories import experiment_repository as experiment_repo
 from app.services.experiment_service import _row_to_detail
+
+tracer = trace.get_tracer(__name__)
 
 
 def _referenced_names(expr: str) -> set[str]:
@@ -31,7 +33,10 @@ def _dependency_order(formulas: dict[str, str]) -> list[str]:
     formulas happened to be declared/stored in.
     """
     names = set(formulas)
-    deps = {name: _referenced_names(expr) & names - {name} for name, expr in formulas.items()}
+    deps = {
+        name: _referenced_names(expr) & names - {name}
+        for name, expr in formulas.items()
+    }
 
     order: list[str] = []
     resolved: set[str] = set()
@@ -41,9 +46,7 @@ def _dependency_order(formulas: dict[str, str]) -> list[str]:
         ready = sorted(name for name, unmet in remaining.items() if unmet <= resolved)
         if not ready:
             cycle = ", ".join(sorted(remaining))
-            raise HTTPException(
-                422, f"Circular dependency among calculations: {cycle}"
-            )
+            raise HTTPException(422, f"Circular dependency among calculations: {cycle}")
         for name in ready:
             order.append(name)
             resolved.add(name)
@@ -87,7 +90,9 @@ def _eval_formula(expr: str, namespace: dict[str, Any]) -> Any:
     if tree.body and isinstance(tree.body[-1], ast.Expr):
         final = tree.body.pop()
         if tree.body:
-            exec(compile(tree, "<formula>", "exec"), restricted, namespace)  # noqa: S102
+            exec(
+                compile(tree, "<formula>", "exec"), restricted, namespace
+            )  # noqa: S102
         return eval(  # noqa: S307
             compile(ast.Expression(final.value), "<formula>", "eval"),
             restricted,
@@ -102,7 +107,11 @@ def _eval_calculations(
     values: dict[str, Any], formulas: dict[str, str]
 ) -> dict[str, Any]:
     values = {name: _coerce_numeric(value) for name, value in values.items()}
-    namespace: dict[str, Any] = {**CALC_BUILTINS, "math": math, "values": values}
+    namespace: dict[str, Any] = {
+        **form_schema.CALC_BUILTINS,
+        "math": math,
+        "values": values,
+    }
     results: dict[str, Any] = {}
 
     for name in _dependency_order(formulas):
@@ -130,19 +139,24 @@ def _eval_calculations(
 
 
 async def calculate(session: AsyncSession, exp_id: uuid.UUID) -> ExperimentDetail:
-    row = await experiment_repo.get(session, exp_id)
-    if row is None:
-        raise HTTPException(404, f'Experiment "{exp_id}" not found')
+    with tracer.start_as_current_span("calculation_service.calculate") as span:
+        span.set_attribute("exp_id", str(exp_id))
 
-    values = collect_values(row.state)
-    formulas = calculation_formulas(row.state.get("calculations"))
-    results = _eval_calculations(values, formulas)
+        row = await experiment_repo.get(session, exp_id)
+        if row is None:
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
 
-    calculations = apply_calculation_results(row.state.get("calculations"), results)
-    new_state = {**row.state, "values": values, "calculations": calculations}
-    new_state.pop("calc_result", None)
+        values = form_schema.collect_values(row.state)
+        formulas = form_schema.calculation_formulas(row.state.get("calculations"))
+        results = _eval_calculations(values, formulas)
 
-    row = await experiment_repo.update(session, exp_id, new_state)
-    await session.commit()
+        calculations = form_schema.apply_calculation_results(
+            row.state.get("calculations"), results
+        )
+        new_state = {**row.state, "values": values, "calculations": calculations}
+        new_state.pop("calc_result", None)
 
-    return _row_to_detail(row)
+        row = await experiment_repo.update(session, exp_id, new_state)
+        await session.commit()
+
+        return _row_to_detail(row)

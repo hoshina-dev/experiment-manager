@@ -10,7 +10,6 @@ dependencies = [
     "jsonschema>=4.21",
     "reportlab>=4.2",
     "opentelemetry-api>=1.41.1",
-    "opentelemetry-exporter-otlp-proto-http>=1.41.1",
     "opentelemetry-instrumentation-fastapi>=0.62b1",
     "opentelemetry-sdk>=1.41.1",
     "psycopg[binary]>=3.2.0",
@@ -18,6 +17,9 @@ dependencies = [
     "scalar-fastapi>=1.8.2",
     "sqlalchemy[asyncio]>=2.0.0",
     "uvicorn[standard]>=0.46.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.42.1",
+    "opentelemetry-instrumentation-sqlalchemy>=0.63b1",
+    "opentelemetry-instrumentation-botocore>=0.63b1",
 ]
 
 [dependency-groups]
