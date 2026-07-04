@@ -1,0 +1,133 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: expman
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations/001_initial_schema.up.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql:ro
+      - ./migrations/002_partial_unique_indexes.up.sql:/docker-entrypoint-initdb.d/002_partial_unique_indexes.sql:ro
+      - ./migrations/003_report_initial_schema.up.sql:/docker-entrypoint-initdb.d/003_report_initial_schema.sql:ro
+      - ./migrations/004_experiment_report_fields.up.sql:/docker-entrypoint-initdb.d/004_experiment_report_fields.sql:ro
+      - ./migrations/005_scd2_experiment_templates.up.sql:/docker-entrypoint-initdb.d/005_scd2_experiment_templates.sql:ro
+      - ./migrations/006_experiment_templates_lineage_id_default.up.sql:/docker-entrypoint-initdb.d/006_experiment_templates_lineage_id_default.sql:ro
+      - ./migrations/007_drop_stale_template_name_index.up.sql:/docker-entrypoint-initdb.d/007_drop_stale_template_name_index.sql:ro
+      - ./sql_mock/900_seed_samples.up.sql:/docker-entrypoint-initdb.d/900_seed_samples.sql:ro
+      - ./sql_mock/901_seed_experiment_templates.up.sql:/docker-entrypoint-initdb.d/901_seed_experiment_templates.sql:ro
+      - ./sql_mock/902_seed_coal_heat_capacity_experiment_template.up.sql:/docker-entrypoint-initdb.d/902_seed_coal_heat_capacity_experiment_template.sql:ro
+      - ./sql_mock/903_seed_coal_calorific_value_experiment_template.up.sql:/docker-entrypoint-initdb.d/903_seed_coal_calorific_value_experiment_template.sql:ro
+      - ./sql_mock/904_seed_coal_heat_capacity_pdf_template.up.sql:/docker-entrypoint-initdb.d/904_seed_coal_heat_capacity_pdf_template.sql:ro
+      - ./sql_mock/905_seed_coal_calorific_value_pdf_template.up.sql:/docker-entrypoint-initdb.d/905_seed_coal_calorific_value_pdf_template.sql:ro
+      - ./sql_mock/906_seed_coal_heat_capacity_experiment.up.sql:/docker-entrypoint-initdb.d/906_seed_coal_heat_capacity_experiment.sql:ro
+      - ./sql_mock/907_seed_coal_calorific_value_experiment.up.sql:/docker-entrypoint-initdb.d/907_seed_coal_calorific_value_experiment.sql:ro
+      - ./sql_mock/908_seed_tomato_analysis_experiment_template.up.sql:/docker-entrypoint-initdb.d/908_seed_tomato_analysis_experiment_template.sql:ro
+      - ./sql_mock/909_seed_tomato_analysis_pdf_template.up.sql:/docker-entrypoint-initdb.d/909_seed_tomato_analysis_pdf_template.sql:ro
+      - ./sql_mock/910_seed_repeatable_measurements.up.sql:/docker-entrypoint-initdb.d/910_seed_repeatable_measurements.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d expman"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  minio-create-bucket:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+      mc mb --ignore-existing local/experiment-reports;
+      "
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.120.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    depends_on:
+      jaeger:
+        condition: service_started
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.64.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "14250:14250"
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+  experiment-manager:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATA_SOURCE_NAME: host=postgres user=postgres password=postgres dbname=expman port=5432 sslmode=disable
+      CORS_ORIGINS: "*"
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: experiment-reports
+      S3_REGION: us-east-1
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: experiment-manager
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-create-bucket:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+
+  k6:
+    profiles: [loadtest]
+    image: grafana/k6:0.57.0
+    volumes:
+      - ./docker/k6/load-test.js:/scripts/load-test.js:ro
+    environment:
+      BASE_URL: http://experiment-manager:8000
+    command: run /scripts/load-test.js
+    depends_on:
+      experiment-manager:
+        condition: service_started
+
+volumes:
+  grafana-data:
+  minio-data:
+  postgres-data:

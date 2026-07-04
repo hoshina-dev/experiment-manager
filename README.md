@@ -38,7 +38,9 @@ Fill in `DATA_SOURCE_NAME` (Postgres DSN) and the `S3_*` variables (required —
 | `DATA_SOURCE_NAME` | Yes | `host=... user=... password=... dbname=... port=... sslmode=...` |
 | `TEST_DATA_SOURCE_NAME` | Tests only | Separate blank DB for the test suite |
 | `CORS_ORIGINS` | No | Comma-separated origins (default `http://localhost:3000`) |
-| `OTEL_ENDPOINT` | No | OTLP/HTTP trace endpoint; omit to disable |
+| `OTEL_ENABLED` | No | Set to `true` to export traces and metrics |
+| `OTEL_SERVICE_NAME` | No | Service name reported to OpenTelemetry (default `experiment-manager`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | OTLP/gRPC endpoint (default `http://localhost:4317` when OTEL is enabled) |
 | `S3_ENDPOINT` | Yes | e.g. `http://localhost:9000` (MinIO) or Cloudflare R2 URL |
 | `S3_BUCKET` | Yes | Bucket for generated PDFs |
 | `S3_ACCESS_KEY` | Yes | |
@@ -81,6 +83,19 @@ API docs:
 
 - Swagger UI: [http://localhost:3000/docs](http://localhost:3000/docs)
 - Scalar UI: [http://localhost:3000/scalar](http://localhost:3000/scalar)
+
+### Observability stack
+
+```bash
+make observability-up
+make observability-load
+```
+
+This starts Postgres, MinIO, the experiment-manager API, an OTel Collector,
+Jaeger, Prometheus, and Grafana. The app exports OTLP/gRPC to the collector,
+with traces visible at [http://localhost:16686](http://localhost:16686) and
+Prometheus at [http://localhost:9090](http://localhost:9090). The k6 load
+target creates synthetic experiment traffic against the running stack.
 
 ### 5. Run tests
 

@@ -318,7 +318,9 @@ Environment variables (see `.env.example`):
 | `DATA_SOURCE_NAME` | Yes | Postgres DSN: `host=... user=... password=... dbname=... port=... sslmode=...` |
 | `TEST_DATA_SOURCE_NAME` | For tests | Separate test DB — blank DB is fine, schema created by test suite |
 | `CORS_ORIGINS` | No | Comma-separated allowed origins (default `http://localhost:3000`) |
-| `OTEL_ENDPOINT` | No | OTLP/HTTP endpoint e.g. `http://localhost:4318/v1/traces`; omit to disable |
+| `OTEL_ENABLED` | No | Set to `true` to export traces and metrics |
+| `OTEL_SERVICE_NAME` | No | Service name reported to OpenTelemetry (default `experiment-manager`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | OTLP/gRPC endpoint e.g. `http://localhost:4317` |
 | `S3_ENDPOINT` | Yes | R2/S3-compatible endpoint e.g. `http://localhost:9000` |
 | `S3_BUCKET` | Yes | Bucket name for storing generated PDFs |
 | `S3_ACCESS_KEY` | Yes | S3 access key |

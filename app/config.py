@@ -30,7 +30,9 @@ def _dsn_to_async_url(dsn: str) -> str:
 class Settings(BaseSettings):
     port: int = 8000
     cors_origins: str = "http://localhost:3000"
-    otel_endpoint: str | None = None
+    otel_enabled: bool = False
+    otel_service_name: str = "experiment-manager"
+    otel_exporter_otlp_endpoint: str | None = None
     data_source_name: str = Field(default="")
     test_data_source_name: str | None = None
 
