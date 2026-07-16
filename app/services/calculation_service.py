@@ -1,6 +1,8 @@
 import ast
+import concurrent.futures
 import math
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException
@@ -13,6 +15,46 @@ from app.repositories import experiment_repository as experiment_repo
 from app.services.experiment_service import _row_to_detail
 
 tracer = trace.get_tracer(__name__)
+
+_EVAL_TIMEOUT_SECS = 5
+_MAX_EXPONENT = 1000
+
+
+_BLOCKED_ATTRS = frozenset({"format", "encode", "decode", "mro", "func", "gi_frame"})
+
+
+def _validate_ast(tree: ast.AST) -> None:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            if node.attr.startswith("_"):
+                raise HTTPException(
+                    422, f"Private attribute access not allowed in formulas: .{node.attr}"
+                )
+            if node.attr in _BLOCKED_ATTRS:
+                raise HTTPException(
+                    422, f"Attribute not allowed in formulas: .{node.attr}"
+                )
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            raise HTTPException(422, "Import statements not allowed in formulas")
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+            if isinstance(node.right, ast.BinOp) and isinstance(node.right.op, ast.Pow):
+                raise HTTPException(422, "Chained power expressions (a**b**c) not allowed")
+            if isinstance(node.right, ast.Constant) and isinstance(node.right.value, (int, float)):
+                if node.right.value > _MAX_EXPONENT:
+                    raise HTTPException(422, f"Exponent too large (max {_MAX_EXPONENT}): {node.right.value}")
+
+
+def _run_with_timeout(fn: Callable[[], Any]) -> Any:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(fn)
+        try:
+            return future.result(timeout=_EVAL_TIMEOUT_SECS)
+        except concurrent.futures.TimeoutError:
+            raise HTTPException(
+                422,
+                f"Formula timed out after {_EVAL_TIMEOUT_SECS}s — "
+                "check for unbounded computations",
+            )
 
 
 def _referenced_names(expr: str) -> set[str]:
@@ -87,19 +129,27 @@ def _eval_formula(expr: str, namespace: dict[str, Any]) -> Any:
     """
     restricted = {"__builtins__": {}}
     tree = ast.parse(expr, mode="exec")
+    _validate_ast(tree)
     if tree.body and isinstance(tree.body[-1], ast.Expr):
         final = tree.body.pop()
+        assert isinstance(final, ast.Expr)
         if tree.body:
-            exec(
-                compile(tree, "<formula>", "exec"), restricted, namespace
-            )  # noqa: S102
-        return eval(  # noqa: S307
-            compile(ast.Expression(final.value), "<formula>", "eval"),
-            restricted,
-            namespace,
+            _run_with_timeout(
+                lambda: exec(  # noqa: S102
+                    compile(tree, "<formula>", "exec"), restricted, namespace
+                )
+            )
+        return _run_with_timeout(
+            lambda: eval(  # noqa: S307
+                compile(ast.Expression(final.value), "<formula>", "eval"),
+                restricted,
+                namespace,
+            )
         )
     namespace.pop("result", None)
-    exec(compile(tree, "<formula>", "exec"), restricted, namespace)  # noqa: S102
+    _run_with_timeout(
+        lambda: exec(compile(tree, "<formula>", "exec"), restricted, namespace)  # noqa: S102
+    )
     return namespace.get("result")
 
 
