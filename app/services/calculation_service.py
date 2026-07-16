@@ -34,6 +34,10 @@ def _validate_ast(tree: ast.AST) -> None:
                 raise HTTPException(
                     422, f"Attribute not allowed in formulas: .{node.attr}"
                 )
+        if isinstance(node, ast.Name) and "__" in node.id:
+            raise HTTPException(
+                422, f"Double-underscore identifier not allowed in formulas: {node.id}"
+            )
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             raise HTTPException(422, "Import statements not allowed in formulas")
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
