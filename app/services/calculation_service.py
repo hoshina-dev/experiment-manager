@@ -1,8 +1,9 @@
 import ast
-import concurrent.futures
 import math
+import multiprocessing
+import resource
+import tracemalloc
 import uuid
-from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException
@@ -18,7 +19,8 @@ tracer = trace.get_tracer(__name__)
 
 _EVAL_TIMEOUT_SECS = 5
 _MAX_EXPONENT = 1000
-
+_MAX_MEMORY_BYTES = 512 * 1024 * 1024
+_MAX_PEAK_ALLOC = 256 * 1024 * 1024
 
 _BLOCKED_ATTRS = frozenset({"format", "encode", "decode", "mro", "func", "gi_frame"})
 
@@ -48,17 +50,61 @@ def _validate_ast(tree: ast.AST) -> None:
                     raise HTTPException(422, f"Exponent too large (max {_MAX_EXPONENT}): {node.right.value}")
 
 
-def _run_with_timeout(fn: Callable[[], Any]) -> Any:
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(fn)
-        try:
-            return future.result(timeout=_EVAL_TIMEOUT_SECS)
-        except concurrent.futures.TimeoutError:
-            raise HTTPException(
-                422,
-                f"Formula timed out after {_EVAL_TIMEOUT_SECS}s — "
-                "check for unbounded computations",
-            )
+def _sandbox_worker(
+    values: dict[str, Any],
+    formulas: dict[str, str],
+    queue: "multiprocessing.Queue[Any]",
+) -> None:
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (_MAX_MEMORY_BYTES, _MAX_MEMORY_BYTES))
+    except (ValueError, OSError):
+        pass
+
+    tracemalloc.start()
+    try:
+        result = _eval_calculations(values, formulas)
+        _, peak = tracemalloc.get_traced_memory()
+        if peak > _MAX_PEAK_ALLOC:
+            queue.put(("err", f"Memory limit exceeded ({peak // 1024 // 1024} MB peak, max {_MAX_PEAK_ALLOC // 1024 // 1024} MB)"))
+            return
+        queue.put(("ok", result))
+    except HTTPException as exc:
+        queue.put(("http_err", exc.status_code, exc.detail))
+    except MemoryError:
+        queue.put(("err", "Memory limit exceeded"))
+    except Exception as exc:
+        queue.put(("err", str(exc)))
+    finally:
+        tracemalloc.stop()
+
+
+def _run_calculations_sandboxed(
+    values: dict[str, Any], formulas: dict[str, str]
+) -> dict[str, Any]:
+    ctx = multiprocessing.get_context("spawn")
+    queue: multiprocessing.Queue[Any] = ctx.Queue()
+    proc = ctx.Process(target=_sandbox_worker, args=(values, formulas, queue), daemon=True)
+    proc.start()
+    proc.join(timeout=_EVAL_TIMEOUT_SECS)
+
+    if proc.is_alive():
+        proc.kill()
+        proc.join()
+        raise HTTPException(
+            422,
+            f"Calculation timed out after {_EVAL_TIMEOUT_SECS}s — "
+            "check for infinite loops or unbounded computations",
+        )
+
+    if proc.exitcode != 0 or queue.empty():
+        raise HTTPException(422, "Calculation exceeded memory limit or crashed")
+
+    tag, *rest = queue.get_nowait()
+    if tag == "ok":
+        return rest[0]
+    if tag == "http_err":
+        raise HTTPException(rest[0], rest[1])
+    raise HTTPException(422, f"Calculation error: {rest[0]}")
 
 
 def _referenced_names(expr: str) -> set[str]:
@@ -138,22 +184,14 @@ def _eval_formula(expr: str, namespace: dict[str, Any]) -> Any:
         final = tree.body.pop()
         assert isinstance(final, ast.Expr)
         if tree.body:
-            _run_with_timeout(
-                lambda: exec(  # noqa: S102
-                    compile(tree, "<formula>", "exec"), restricted, namespace
-                )
-            )
-        return _run_with_timeout(
-            lambda: eval(  # noqa: S307
-                compile(ast.Expression(final.value), "<formula>", "eval"),
-                restricted,
-                namespace,
-            )
+            exec(compile(tree, "<formula>", "exec"), restricted, namespace)  # noqa: S102
+        return eval(  # noqa: S307
+            compile(ast.Expression(final.value), "<formula>", "eval"),
+            restricted,
+            namespace,
         )
     namespace.pop("result", None)
-    _run_with_timeout(
-        lambda: exec(compile(tree, "<formula>", "exec"), restricted, namespace)  # noqa: S102
-    )
+    exec(compile(tree, "<formula>", "exec"), restricted, namespace)  # noqa: S102
     return namespace.get("result")
 
 
@@ -186,6 +224,13 @@ def _eval_calculations(
         if isinstance(value, float) and not math.isfinite(value):
             raise HTTPException(422, f"Non-finite result in '{name}' (got {value})")
 
+        if isinstance(value, (list, tuple, set, frozenset, dict)) and len(value) > 100_000:
+            raise HTTPException(
+                422,
+                f"Result of '{name}' is too large ({len(value)} items, max 100 000) — "
+                "check for unbounded allocations",
+            )
+
         namespace[name] = value
         results[name] = value
 
@@ -202,7 +247,7 @@ async def calculate(session: AsyncSession, exp_id: uuid.UUID) -> ExperimentDetai
 
         values = form_schema.collect_values(row.state)
         formulas = form_schema.calculation_formulas(row.state.get("calculations"))
-        results = _eval_calculations(values, formulas)
+        results = _run_calculations_sandboxed(values, formulas)
 
         calculations = form_schema.apply_calculation_results(
             row.state.get("calculations"), results
