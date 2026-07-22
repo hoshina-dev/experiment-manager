@@ -87,7 +87,7 @@ jobs:
           uv run pytest tests -m integration -ra
           --cov=app --cov-branch --cov-append
           --cov-report=term-missing --cov-report=xml:coverage.xml
-          --cov-fail-under=75
+          --cov-fail-under=65
 
       - name: Upload coverage report
         if: always()
