@@ -5,6 +5,8 @@ from fastapi import HTTPException
 
 from app.services.calculation_service import _eval_calculations
 
+pytestmark = pytest.mark.unit
+
 
 def test_eval_basic_arithmetic() -> None:
     values = {"a": 10, "b": 3}
@@ -211,7 +213,9 @@ def test_eval_ternary_expression() -> None:
 def test_eval_multiline_ending_in_expression() -> None:
     result = _eval_calculations(
         {"tray_mass": 100.0, "tray_sam": 120.0},
-        {"sample_mass": "loss = values['tray_sam'] - values['tray_mass']\nround(loss, 1)"},
+        {
+            "sample_mass": "loss = values['tray_sam'] - values['tray_mass']\nround(loss, 1)"
+        },
     )
     assert result["sample_mass"] == 20.0
 

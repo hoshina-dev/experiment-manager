@@ -3,11 +3,14 @@
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 
+import pytest
 from reportlab.pdfbase import pdfmetrics
 
 from app.pdf.components import TextStyle, component_from_dict
 from app.pdf.fonts import register_fonts
 from app.pdf.renderer import generate_pdf
+
+pytestmark = pytest.mark.unit
 
 
 def test_register_fonts_registers_all_four_variants():

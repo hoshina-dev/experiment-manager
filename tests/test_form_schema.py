@@ -1,7 +1,10 @@
 """Tests for form_schema helpers."""
 
-from app.form_schema import (collect_values, find_duplicate_question_ids,
-                             migrate_formula)
+import pytest
+
+from app.form_schema import collect_values, find_duplicate_question_ids, migrate_formula
+
+pytestmark = pytest.mark.unit
 
 
 def test_collect_values_merges_defaults() -> None:
@@ -48,7 +51,9 @@ def test_collect_values_expands_repeatable_group_child_default_to_count_list() -
     assert collect_values(state) == {"reading_a": [10.0, 10.0, 10.0]}
 
 
-def test_collect_values_does_not_override_explicitly_submitted_repeatable_values() -> None:
+def test_collect_values_does_not_override_explicitly_submitted_repeatable_values() -> (
+    None
+):
     state = {
         "values": {"reading_a": [1.0, 2.0, 3.0]},
         "labForm": {

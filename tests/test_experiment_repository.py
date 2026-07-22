@@ -2,9 +2,12 @@
 
 import uuid
 
+import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.repositories import experiment_repository as repo
+
+pytestmark = pytest.mark.integration
 
 
 async def test_update_report_failure_clears_stale_report_r2_key(

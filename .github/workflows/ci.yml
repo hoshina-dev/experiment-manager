@@ -1,0 +1,217 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Verify lock file
+        run: uv lock --check
+
+      - name: Install dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Check formatting and imports
+        run: uv run black --check . && uv run isort --check-only .
+
+  tests:
+    name: Unit and integration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      DATA_SOURCE_NAME: host=127.0.0.1 user=postgres password=postgres dbname=experiment_manager_test port=5432 sslmode=disable
+      TEST_DATA_SOURCE_NAME: host=127.0.0.1 user=postgres password=postgres dbname=experiment_manager_test port=5432 sslmode=disable
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_BUCKET: test-reports
+      S3_ACCESS_KEY: test
+      S3_SECRET_KEY: test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: experiment_manager_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d experiment_manager_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Run unit tests
+        run: >-
+          uv run pytest tests -m unit -ra
+          --cov=app --cov-branch --cov-report=term-missing
+
+      - name: Run PostgreSQL integration tests
+        run: >-
+          uv run pytest tests -m integration -ra
+          --cov=app --cov-branch --cov-append
+          --cov-report=term-missing --cov-report=xml:coverage.xml
+          --cov-fail-under=75
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: experiment-manager-coverage
+          path: coverage.xml
+          if-no-files-found: error
+
+  acceptance:
+    name: Cucumber acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CI: "true"
+      DATA_SOURCE_NAME: host=127.0.0.1 user=postgres password=postgres dbname=experiment_manager_acceptance port=5432 sslmode=disable
+      TEST_DATA_SOURCE_NAME: host=127.0.0.1 user=postgres password=postgres dbname=experiment_manager_acceptance port=5432 sslmode=disable
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_BUCKET: test-reports
+      S3_ACCESS_KEY: test
+      S3_SECRET_KEY: test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: experiment_manager_acceptance
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d experiment_manager_acceptance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Run Gherkin workflow
+        run: >-
+          uv run pytest tests/acceptance -m acceptance -v
+          --gherkin-terminal-reporter
+          --cucumberjson=cucumber-report.json
+
+      - name: Upload Cucumber report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: experiment-manager-cucumber
+          path: cucumber-report.json
+          if-no-files-found: error
+
+  migrations:
+    name: Migration smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: experiment_manager_migrations
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d experiment_manager_migrations"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/experiment_manager_migrations
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Apply every migration
+        run: |
+          set -euo pipefail
+          for migration in migrations/*.up.sql; do
+            psql "$DATABASE_URL" --set ON_ERROR_STOP=1 --file "$migration"
+          done
+
+      - name: Verify production tables
+        run: |
+          psql "$DATABASE_URL" --set ON_ERROR_STOP=1 <<'SQL'
+          SELECT 1 FROM sample_types LIMIT 0;
+          SELECT 1 FROM experiment_templates LIMIT 0;
+          SELECT 1 FROM experiments LIMIT 0;
+          SELECT 1 FROM pdf_templates LIMIT 0;
+          SQL
+
+  docker:
+    name: Docker build
+    needs:
+      - quality
+      - tests
+      - acceptance
+      - migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build production image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: experiment-manager:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

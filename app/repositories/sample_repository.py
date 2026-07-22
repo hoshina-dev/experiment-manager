@@ -252,8 +252,14 @@ async def create_new_template_version(
     session.add(new_row)
     await session.flush()
 
-    final_components = override_pdf_components if override_pdf_components is not None else old_pdf_components
-    new_pdf = PdfTemplate(template_id=new_row.id, components=final_components, is_current=True)
+    final_components = (
+        override_pdf_components
+        if override_pdf_components is not None
+        else old_pdf_components
+    )
+    new_pdf = PdfTemplate(
+        template_id=new_row.id, components=final_components, is_current=True
+    )
     session.add(new_pdf)
     await session.flush()
 
@@ -294,9 +300,7 @@ async def update_pdf_template_in_place(
     return row
 
 
-async def delete_pdf_template(
-    session: AsyncSession, template_id: uuid.UUID
-) -> bool:
+async def delete_pdf_template(session: AsyncSession, template_id: uuid.UUID) -> bool:
     row = await get_pdf_template(session, template_id)
     if row is None:
         return False

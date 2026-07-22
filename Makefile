@@ -1,10 +1,19 @@
-.PHONY: serve test lint format clean requirements observability-up observability-down observability-load observability-logs
+.PHONY: serve test test-unit test-integration test-acceptance lint format clean requirements observability-up observability-down observability-load observability-logs
 
 serve:
 	uv run uvicorn main:app --reload --port 8000
 
 test:
 	uv run pytest tests/ -v
+
+test-unit:
+	uv run pytest tests/ -m unit -v
+
+test-integration:
+	uv run pytest tests/ -m integration -v
+
+test-acceptance:
+	uv run pytest tests/acceptance -m acceptance -v --gherkin-terminal-reporter
 
 lint:
 	uv run black --check . && uv run isort --check .

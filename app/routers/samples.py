@@ -8,11 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.services.sample_service as service
 from app.database import get_db
-from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
-                        ExperimentTemplateHistoryResponse,
-                        ExperimentTemplatesResponse, ExperimentTemplateUpdate,
-                        PdfTemplateBody, PdfTemplateResponse, SampleCreate,
-                        SamplesListResponse, SampleSummary, SampleUpdate)
+from app.models import (
+    ExperimentTemplateCreate,
+    ExperimentTemplateDetail,
+    ExperimentTemplateHistoryResponse,
+    ExperimentTemplatesResponse,
+    ExperimentTemplateUpdate,
+    PdfTemplateBody,
+    PdfTemplateResponse,
+    SampleCreate,
+    SamplesListResponse,
+    SampleSummary,
+    SampleUpdate,
+)
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 

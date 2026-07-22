@@ -100,10 +100,19 @@ target creates synthetic experiment traffic against the running stack.
 ### 5. Run tests
 
 ```bash
-uv run pytest -v
+make test-unit
+make test-integration
+make test-acceptance
 ```
 
-Requires `TEST_DATA_SOURCE_NAME` in `.env`. The test suite creates its own schema and rolls back after each test.
+Integration and acceptance tests require `TEST_DATA_SOURCE_NAME` in `.env` and
+must point to a disposable PostgreSQL database. The test suite creates its own
+schema. Acceptance scenarios are written in Gherkin and exercise the public HTTP
+API from experiment creation through a persisted calculation result.
+
+Pull requests run formatting, unit tests, PostgreSQL integration tests, the
+Cucumber acceptance journey, every SQL migration, and a production Docker build.
+Images are published from `main` only after that CI workflow succeeds.
 
 ## API
 

@@ -9,8 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.services.calculation_service as calc_service
 import app.services.experiment_service as service
 from app.database import get_db
-from app.models import (ExperimentCreate, ExperimentDetail,
-                        ExperimentsListResponse, ExperimentUpdate)
+from app.models import (
+    ExperimentCreate,
+    ExperimentDetail,
+    ExperimentsListResponse,
+    ExperimentUpdate,
+)
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"])
 

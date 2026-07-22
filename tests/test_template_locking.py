@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.repositories import sample_repository as repo
 from tests.conftest import COAL_ID, PROXIMATE_TEMPLATE_ID
 
+pytestmark = pytest.mark.integration
+
 
 async def test_locked_read_blocks_a_concurrent_locked_read_on_the_same_row(
     test_engine, seed_catalogue

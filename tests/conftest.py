@@ -6,8 +6,7 @@ os.environ["OTEL_ENDPOINT"] = ""
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
-                                    create_async_engine)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import settings
 from app.database import get_db
@@ -25,6 +24,8 @@ DIVISOR_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0003-0003-0003-000000000003")
 @pytest.fixture(scope="session")
 def require_test_db() -> None:
     if not settings.test_data_source_name:
+        if os.getenv("CI"):
+            pytest.fail("TEST_DATA_SOURCE_NAME is required for database tests in CI")
         pytest.skip("TEST_DATA_SOURCE_NAME not set in .env — skipping tests")
 
 

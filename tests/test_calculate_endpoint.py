@@ -2,9 +2,12 @@
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 
 from tests.conftest import COAL_ID, DIVISOR_TEMPLATE_ID, PROXIMATE_TEMPLATE_ID
+
+pytestmark = pytest.mark.integration
 
 _EXP_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000099")
 _EXP_ID_2 = uuid.UUID("eeeeeeee-0000-0000-0000-000000000098")

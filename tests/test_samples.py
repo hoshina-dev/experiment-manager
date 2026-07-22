@@ -2,10 +2,12 @@
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 
-from tests.conftest import (CALORIFIC_TEMPLATE_ID, COAL_ID,
-                            PROXIMATE_TEMPLATE_ID)
+from tests.conftest import CALORIFIC_TEMPLATE_ID, COAL_ID, PROXIMATE_TEMPLATE_ID
+
+pytestmark = pytest.mark.integration
 
 _NEW_SAMPLE = {"name": "Test Sample", "description": "For testing"}
 _NEW_EXPERIMENT_TEMPLATE = {

@@ -3,6 +3,8 @@ from httpx import ASGITransport, AsyncClient
 
 from main import create_app
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 async def docs_client():
