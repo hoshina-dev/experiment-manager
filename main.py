@@ -108,6 +108,10 @@ def create_app() -> FastAPI:
     app.include_router(experiments.router)
     app.include_router(reports.router)
 
+    @app.get("/health")
+    async def health_check():
+        return {"status": "ok"}
+
     @app.get("/scalar", include_in_schema=False)
     async def scalar_html():
         return get_scalar_api_reference(
