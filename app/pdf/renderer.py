@@ -8,6 +8,7 @@ from reportlab.pdfgen import canvas as rl_canvas
 from .components import PageBreakComponent, ShapeComponent, TextComponent
 from .context import flatten_context
 from .engine import TemplateEngine
+from .fonts import resolve_font
 from .parser import interpolate_template
 
 
@@ -58,14 +59,7 @@ def render_pdf(components: list, context: dict[str, Any]) -> bytes:
 def _draw_text(c: Any, comp: TextComponent, context: dict[str, Any]) -> None:
     text = interpolate_template(comp.content, context)
 
-    font = comp.style.font
-    if comp.style.bold and comp.style.italic:
-        font += "-BoldOblique"
-    elif comp.style.bold:
-        font += "-Bold"
-    elif comp.style.italic:
-        font += "-Oblique"
-
+    font = resolve_font(comp.style.font, comp.style.bold, comp.style.italic)
     c.setFont(font, comp.style.size)
     c.setFillColor(HexColor(comp.style.color))
 
