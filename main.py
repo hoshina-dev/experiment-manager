@@ -18,7 +18,7 @@ from app.pdf.fonts import register_fonts
 from app.pdf.r2_client import check_connection
 from app.report_worker import ReportJob, report_worker
 from app.repositories import experiment_repository as experiment_repo
-from app.routers import experiments, reports, samples
+from app.routers import experiments, health, reports, samples
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(samples.router)
     app.include_router(experiments.router)
     app.include_router(reports.router)
+    app.include_router(health.router)
 
     @app.get("/scalar", include_in_schema=False)
     async def scalar_html():
