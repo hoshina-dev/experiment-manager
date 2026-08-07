@@ -19,7 +19,7 @@
       "required": ["name", "questions"],
       "properties": {
         "name": { "type": "string" },
-        "description": { "type": "string" },
+        "description": { "type": ["string", "null"] },
         "questions": {
           "type": "array",
           "items": { "$ref": "#/$defs/question" }
@@ -133,7 +133,7 @@
         "id": { "type": "string" },
         "type": { "type": "string" },
         "label": { "type": "string" },
-        "description": { "type": "string" },
+        "description": { "type": ["string", "null"] },
         "required": { "type": "boolean" }
       }
     },

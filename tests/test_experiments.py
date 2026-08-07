@@ -4,7 +4,15 @@ import uuid
 
 from httpx import AsyncClient
 
-from tests.conftest import COAL_ID, PROXIMATE_TEMPLATE_ID
+from tests.conftest import COAL_ID, DIVISOR_TEMPLATE_ID, PROXIMATE_TEMPLATE_ID
+
+_DIVISOR_EXP_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000002")
+
+_DIVISOR_VALID_BODY = {
+    "exp_id": str(_DIVISOR_EXP_ID),
+    "sample_id": str(COAL_ID),
+    "lineage_id": str(DIVISOR_TEMPLATE_ID),
+}
 
 _EXP_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000001")
 
@@ -182,6 +190,105 @@ async def test_update_experiment_ignores_client_supplied_result(client: AsyncCli
     )
     assert response.status_code == 200
     assert response.json()["calculations"]["result"]["result"] == ""
+
+
+async def test_update_experiment_calculations_replaces_formula(client: AsyncClient):
+    await client.post("/api/experiments", json=_DIVISOR_VALID_BODY)
+    response = await client.put(
+        f"/api/experiments/{_DIVISOR_EXP_ID}/calculations",
+        json={
+            "calculations": {
+                "bad": {
+                    "formula": "values['value'] / values['value'] if values['value'] else None"
+                },
+            }
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["calculations"]["bad"]["formula"] == (
+        "values['value'] / values['value'] if values['value'] else None"
+    )
+    assert body["calculations"]["bad"]["result"] == ""
+
+
+async def test_update_experiment_calculations_does_not_touch_template_id(
+    client: AsyncClient,
+):
+    await client.post("/api/experiments", json=_DIVISOR_VALID_BODY)
+    response = await client.put(
+        f"/api/experiments/{_DIVISOR_EXP_ID}/calculations",
+        json={"calculations": {"bad": {"formula": "1"}}},
+    )
+    assert response.json()["template_id"] == str(DIVISOR_TEMPLATE_ID)
+
+
+async def test_update_experiment_calculations_leaves_forms_and_values_untouched(
+    client: AsyncClient,
+):
+    await client.post("/api/experiments", json=_DIVISOR_VALID_BODY)
+    await client.put(
+        f"/api/experiments/{_DIVISOR_EXP_ID}",
+        json={
+            "clientForm": {"name": "Client", "questions": []},
+            "labForm": {"name": "Form", "questions": []},
+            "calculations": {"bad": {"formula": "1 / values['value']", "result": ""}},
+            "values": {"value": 5},
+        },
+    )
+    response = await client.put(
+        f"/api/experiments/{_DIVISOR_EXP_ID}/calculations",
+        json={"calculations": {"bad": {"formula": "1"}}},
+    )
+    assert response.status_code == 200
+    assert response.json()["values"] == {"value": 5}
+
+
+async def test_update_experiment_calculations_can_then_be_evaluated(
+    client: AsyncClient,
+):
+    await client.post("/api/experiments", json=_DIVISOR_VALID_BODY)
+    await client.put(
+        f"/api/experiments/{_DIVISOR_EXP_ID}",
+        json={
+            "clientForm": {"name": "Client", "questions": []},
+            "labForm": {"name": "Form", "questions": []},
+            "calculations": {"bad": {"formula": "1 / values['value']", "result": ""}},
+            "values": {"value": 0},
+        },
+    )
+    await client.put(
+        f"/api/experiments/{_DIVISOR_EXP_ID}/calculations",
+        json={
+            "calculations": {
+                "bad": {"formula": "1 / values['value'] if values['value'] else 0"},
+            }
+        },
+    )
+    response = await client.post(f"/api/experiments/{_DIVISOR_EXP_ID}/calculate")
+    assert response.status_code == 200
+    assert response.json()["calculations"]["bad"]["result"] == 0
+
+
+async def test_update_experiment_calculations_invalid_name_returns_422(
+    client: AsyncClient,
+):
+    await client.post("/api/experiments", json=_DIVISOR_VALID_BODY)
+    response = await client.put(
+        f"/api/experiments/{_DIVISOR_EXP_ID}/calculations",
+        json={"calculations": {"not a valid name!": {"formula": "1"}}},
+    )
+    assert response.status_code == 422
+
+
+async def test_update_experiment_calculations_unknown_experiment_returns_404(
+    client: AsyncClient,
+):
+    response = await client.put(
+        f"/api/experiments/{uuid.uuid4()}/calculations",
+        json={"calculations": {"bad": {"formula": "1"}}},
+    )
+    assert response.status_code == 404
 
 
 async def test_delete_experiment_returns_204(client: AsyncClient):

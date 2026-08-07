@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.repositories.experiment_repository as experiment_repo
 import app.repositories.sample_repository as sample_repo
 from app.db_models import ExperimentTemplate
-from app.models import (Calculation, ExperimentCreate, ExperimentDetail,
+from app.models import (Calculation, ExperimentCalculationsUpdate,
+                        ExperimentCreate, ExperimentDetail,
                         ExperimentsListResponse, ExperimentSummary,
                         ExperimentUpdate, FormDoc, ReportDownloadResponse)
 from app.pdf.r2_client import presign_download
@@ -190,6 +191,48 @@ async def update_experiment(
                     "errors": exc.errors,
                 },
             )
+        row = await experiment_repo.update(session, exp_id, context)
+        await session.commit()
+        return _row_to_detail(row)
+
+
+async def update_experiment_calculations(
+    session: AsyncSession, exp_id: uuid.UUID, body: ExperimentCalculationsUpdate
+) -> ExperimentDetail:
+    """Replace this experiment's own calculation formulas, e.g. to fix a
+    formula bug on an experiment already stuck on an old template version.
+    Scoped to this experiment only — does not touch template_id/version and
+    does not affect any other experiment on the same lineage. Results are
+    reset to "" (unevaluated); call /calculate afterward to recompute them.
+    """
+    with tracer.start_as_current_span(
+        "experiment_service.update_calculations"
+    ) as span:
+        span.set_attribute("exp_id", str(exp_id))
+        existing = await experiment_repo.get(session, exp_id)
+        if existing is None:
+            raise HTTPException(404, f'Experiment "{exp_id}" not found')
+
+        calculations = {
+            name: {
+                **calc.model_dump(exclude_none=True, exclude={"result"}),
+                "result": "",
+            }
+            for name, calc in body.calculations.items()
+        }
+
+        context = {**existing.state, "calculations": calculations}
+        try:
+            validate_form(context)
+        except FormSchemaError as exc:
+            raise HTTPException(
+                422,
+                {
+                    "message": "Experiment calculations violate schema",
+                    "errors": exc.errors,
+                },
+            )
+
         row = await experiment_repo.update(session, exp_id, context)
         await session.commit()
         return _row_to_detail(row)
