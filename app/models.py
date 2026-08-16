@@ -284,6 +284,31 @@ class ExperimentUpdate(BaseModel):
     values: dict[str, Any] = Field(default_factory=dict)
 
 
+class ExperimentCalculationsUpdate(BaseModel):
+    """Replaces an experiment's own calculation formulas in place.
+
+    Scoped to a single experiment: does not touch ``template_id``/version and
+    does not affect any other experiment on the same lineage. Existing
+    ``clientForm``/``labForm``/``values`` are left untouched; call
+    ``POST /api/experiments/{exp_id}/calculate`` afterward to recompute
+    results with the new formulas.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "calculations": {
+                    "apple_density": {
+                        "formula": "values['a'] / values['b'] if values['b'] != 0 else None",
+                    },
+                },
+            }
+        }
+    )
+
+    calculations: dict[str, Calculation]
+
+
 class ExperimentSummary(BaseModel):
     id: UUID
     sample_id: UUID

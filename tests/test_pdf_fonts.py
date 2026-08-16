@@ -7,7 +7,7 @@ import pytest
 from reportlab.pdfbase import pdfmetrics
 
 from app.pdf.components import TextStyle, component_from_dict
-from app.pdf.fonts import register_fonts
+from app.pdf.fonts import register_fonts, resolve_font
 from app.pdf.renderer import generate_pdf
 
 pytestmark = pytest.mark.unit
@@ -88,6 +88,51 @@ def test_generate_pdf_works_in_fresh_subprocess_via_executor_initializer():
     ) as executor:
         future = executor.submit(_render_in_subprocess, components)
         pdf_bytes = future.result(timeout=30)
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_resolve_font_times_roman_bold_and_italic_variants():
+    """Regression test: ReportLab names Times' variants Times-Bold /
+    Times-Italic / Times-BoldItalic — not Times-Roman-Bold /
+    Times-Roman-Oblique / Times-Roman-BoldOblique, which naive suffixing
+    used to produce and which were never registered (KeyError at render).
+    """
+    assert resolve_font("Times-Roman", False, False) == "Times-Roman"
+    assert resolve_font("Times-Roman", True, False) == "Times-Bold"
+    assert resolve_font("Times-Roman", False, True) == "Times-Italic"
+    assert resolve_font("Times-Roman", True, True) == "Times-BoldItalic"
+    for name in ("Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic"):
+        assert pdfmetrics.getFont(name) is not None
+
+
+def test_resolve_font_known_families_follow_suffix_convention():
+    for family in ("Helvetica", "Courier", "Noto Sans"):
+        assert resolve_font(family, False, False) == family
+        assert resolve_font(family, True, False) == f"{family}-Bold"
+        assert resolve_font(family, False, True) == f"{family}-Oblique"
+        assert resolve_font(family, True, True) == f"{family}-BoldOblique"
+
+
+def test_resolve_font_unknown_family_falls_back_to_naive_suffixing():
+    """An unregistered family isn't silently swallowed — it fails at
+    setFont() exactly like before, rather than resolve_font() masking it."""
+    assert resolve_font("Comic Sans", False, False) == "Comic Sans"
+    assert resolve_font("Comic Sans", True, False) == "Comic Sans-Bold"
+    assert resolve_font("Comic Sans", False, True) == "Comic Sans-Oblique"
+    assert resolve_font("Comic Sans", True, True) == "Comic Sans-BoldOblique"
+
+
+def test_generate_pdf_renders_times_roman_bold():
+    components = [
+        {
+            "id": "heading",
+            "type": "text",
+            "rect": [50, 700, 500, 40],
+            "content": "Bold Times heading",
+            "style": {"font": "Times-Roman", "bold": True},
+        }
+    ]
+    pdf_bytes = generate_pdf({}, components)
     assert pdf_bytes.startswith(b"%PDF")
 
 

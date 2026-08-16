@@ -10,6 +10,7 @@ import app.services.calculation_service as calc_service
 import app.services.experiment_service as service
 from app.database import get_db
 from app.models import (
+    ExperimentCalculationsUpdate,
     ExperimentCreate,
     ExperimentDetail,
     ExperimentsListResponse,
@@ -41,6 +42,13 @@ async def update_experiment(
     exp_id: uuid.UUID, body: ExperimentUpdate, db: DbDep
 ) -> ExperimentDetail:
     return await service.update_experiment(db, exp_id, body)
+
+
+@router.put("/{exp_id}/calculations", response_model=ExperimentDetail)
+async def update_experiment_calculations(
+    exp_id: uuid.UUID, body: ExperimentCalculationsUpdate, db: DbDep
+) -> ExperimentDetail:
+    return await service.update_experiment_calculations(db, exp_id, body)
 
 
 @router.delete("/{exp_id}", status_code=204)
