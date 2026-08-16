@@ -31,7 +31,7 @@ uv sync
 cp .env.example .env
 ```
 
-Fill in `DATA_SOURCE_NAME` (Postgres DSN) and the `S3_*` variables (required — the server will not start without a reachable S3/R2 bucket).
+Fill in `DATA_SOURCE_NAME` (Postgres DSN) and the `S3_*` variables (required — the server will not start without a reachable S3/R2 bucket). `S3_PUBLIC_URL` is optional and can point at CloudFront or another public CDN for customer downloads.
 
 | Variable | Required | Description |
 |---|---|---|
@@ -46,6 +46,7 @@ Fill in `DATA_SOURCE_NAME` (Postgres DSN) and the `S3_*` variables (required —
 | `S3_ACCESS_KEY` | Yes | |
 | `S3_SECRET_KEY` | Yes | |
 | `S3_REGION` | No | Default `auto` |
+| `S3_PUBLIC_URL` | No | Optional public base URL for CloudFront/CDN delivery |
 | `REPORT_WORKER_MAX_THREADS` | No | CPU processes for PDF generation (default `2`) |
 | `REPORT_WORKER_QUEUE_MAX_SIZE` | No | Max queued jobs before 503 (default `50`) |
 
