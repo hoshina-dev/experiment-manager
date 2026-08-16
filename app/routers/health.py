@@ -8,7 +8,7 @@ from app.config import r2_settings
 from app.database import get_db
 from app.pdf.r2_client import check_connection
 
-router = APIRouter(tags="health")
+router = APIRouter(tags=["health"])
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
