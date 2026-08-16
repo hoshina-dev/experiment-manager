@@ -75,6 +75,7 @@ class R2Settings(BaseSettings):
     secret_key: str = Field(default="")
     bucket: str = Field(default="")
     region: str = "auto"
+    public_url: str = Field(default="")
 
     model_config = SettingsConfigDict(
         env_prefix="S3_", env_file=".env", env_file_encoding="utf-8", extra="ignore"

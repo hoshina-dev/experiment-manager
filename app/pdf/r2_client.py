@@ -1,11 +1,11 @@
 """
-S3 / Cloudflare R2 storage — upload PDFs and generate presigned download URLs.
+S3 / Cloudflare R2 storage — upload PDFs and generate download URLs.
 
 Both functions are synchronous and must be called from a thread (run_in_executor),
 never directly from the async event loop.
 
 Key convention: pdfs/{exp_id}.pdf — deterministic; put_object overwrites on retry.
-Store only the key in the DB; generate a fresh presigned URL on demand.
+Store only the key in the DB; generate a fresh URL on demand.
 
 Supports:
 - AWS S3 with IAM roles (ECS, EC2, Lambda)
@@ -28,6 +28,7 @@ class S3Config(Protocol):
     secret_key: str
     bucket: str
     region: str
+    public_url: str
 
 
 def _client(cfg: S3Config):
@@ -84,11 +85,14 @@ def presign_download(
     filename: str,
     expires_in: int = 900,
 ) -> str:
-    """Return a presigned GET URL for *key*.
+    """Return a download URL for *key*.
 
-    The ResponseContentDisposition is signed into the URL so it cannot be
-    tampered with. Default TTL: 15 minutes. Never store the returned URL.
+    If a public base URL is configured, use it for CloudFront/CDN delivery.
+    Otherwise fall back to a presigned S3/R2 GET URL.
     """
+    if cfg.public_url:
+        return f"{cfg.public_url.rstrip('/')}/{key}"
+
     return _client(cfg).generate_presigned_url(
         "get_object",
         Params={
