@@ -110,17 +110,22 @@ async def get_experiment(session: AsyncSession, exp_id: uuid.UUID) -> Experiment
         return _row_to_detail(row)
 
 
-def _assert_no_template_drift(body: ExperimentUpdate, template: dict) -> None:
-    """clientForm/labForm/calculations are owned by the template, not the
-    client — reject a PUT if they no longer match (frontend bug or tamper),
-    rather than silently persisting whatever was sent. `result` is excluded
+def _assert_no_template_drift(
+    body: ExperimentUpdate, template: dict, existing_calculations: dict
+) -> None:
+    """clientForm/labForm are owned by the template, not the client — reject
+    a PUT if they no longer match (frontend bug or tamper), rather than
+    silently persisting whatever was sent. `calculations` is compared
+    against the experiment's own currently-stored formulas instead, since
+    `update_experiment_calculations` deliberately lets a single experiment
+    override its formulas independent of the template. `result` is excluded
     from the calculations comparison since only `/calculate` may write it.
     """
     canonical_client = FormDoc(**template["clientForm"]).model_dump(exclude_none=True)
     canonical_lab = FormDoc(**template["labForm"]).model_dump(exclude_none=True)
     canonical_calc = {
         name: Calculation(**calc).model_dump(exclude_none=True, exclude={"result"})
-        for name, calc in template["calculations"].items()
+        for name, calc in existing_calculations.items()
     }
 
     submitted_client = body.clientForm.model_dump(exclude_none=True)
@@ -172,13 +177,15 @@ async def update_experiment(
                 f'Experiment template "{existing.state["template_id"]}" backing this experiment no longer exists',
             )
 
-        _assert_no_template_drift(body, template_row.template)
+        _assert_no_template_drift(
+            body, template_row.template, existing.state["calculations"]
+        )
 
         context = {
             **existing.state,
             "clientForm": template_row.template["clientForm"],
             "labForm": template_row.template["labForm"],
-            "calculations": template_row.template["calculations"],
+            "calculations": existing.state["calculations"],
             "values": body.values,
         }
         try:
