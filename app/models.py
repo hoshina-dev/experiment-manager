@@ -1,7 +1,7 @@
 """Pydantic models for request validation and response serialisation."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -331,6 +331,72 @@ class ExperimentDetail(BaseModel):
 
 class ExperimentsListResponse(BaseModel):
     experiments: list[ExperimentSummary]
+
+
+# ---------------------------------------------------------------------------
+# Calculation dry run
+# ---------------------------------------------------------------------------
+
+
+_DRY_RUN_EXAMPLE: dict[str, Any] = {
+    "example": {
+        "labForm": {
+            "name": "Proximate Analysis Form",
+            "questions": [
+                {
+                    "id": "crucible_mass",
+                    "type": "number",
+                    "label": "Crucible mass (g)",
+                    "config": {"default": 20.0},
+                }
+            ],
+        },
+        "calculations": {
+            "moisture_loss": {
+                "formula": "values['crucible_mass'] + values['sample_mass'] - values['mass_after_moisture']"
+            },
+            "moisture_pct": {
+                "formula": "round(1000 * moisture_loss / values['sample_mass']) / 10"
+            },
+        },
+        "values": {
+            "sample_mass": 1.001,
+            "mass_after_moisture": 20.9,
+        },
+    }
+}
+
+
+class CalculationDryRunRequest(BaseModel):
+    """A draft template plus trial answers, evaluated without persisting."""
+
+    model_config = ConfigDict(json_schema_extra=_DRY_RUN_EXAMPLE)
+
+    clientForm: FormDoc | None = None
+    labForm: FormDoc | None = None
+    calculations: dict[str, Calculation]
+    values: dict[str, Any] = Field(default_factory=dict)
+
+
+class CalculationError(BaseModel):
+    kind: str
+    message: str
+    names: list[str] = Field(default_factory=list)
+
+
+class CalculationOutcome(BaseModel):
+    formula: str
+    status: Literal["ok", "error", "skipped"]
+    result: Any = None
+    error: CalculationError | None = None
+
+
+class CalculationDryRunResponse(BaseModel):
+    values: dict[str, Any]
+    order: list[str]
+    calculations: dict[str, CalculationOutcome]
+    missing_values: list[str]
+    duplicate_question_ids: list[str]
 
 
 # ---------------------------------------------------------------------------

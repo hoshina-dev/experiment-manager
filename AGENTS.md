@@ -52,11 +52,12 @@ app/
   routers/
     samples.py                           # /api/samples — SampleType + ExperimentTemplate CRUD
     experiments.py                       # /api/experiments — Experiment CRUD + calculate
+    calculations.py                      # /api/calculations/evaluate — stateless dry run
     reports.py                           # /api/experiments/{id}/report/generate|download
   services/
     sample_service.py                    # Business logic for samples and templates
     experiment_service.py                # Business logic for experiments + report enqueue
-    calculation_service.py               # Safe Python eval, calculate()
+    calculation_service.py               # Safe Python eval, calculate(), dry_run()
   repositories/
     sample_repository.py                 # Async DB access for sample_types and experiment_templates
     experiment_repository.py             # Async DB access for experiments + report status updates
@@ -66,6 +67,7 @@ tests/
   test_experiments.py
   test_calculation_service.py            # Unit tests for _extract_inputs, _eval_calculations
   test_calculate_endpoint.py             # Integration tests for POST /calculate
+  test_calculation_dry_run.py            # Integration tests for POST /api/calculations/evaluate
 ```
 
 Layer rules (enforce strictly):
@@ -140,6 +142,17 @@ async def get_sample(sample_id: uuid.UUID, db: DbDep) -> SampleSummary:
 | `DELETE` | `/api/experiments/{exp_id}` | Soft delete |
 | `POST` | `/api/experiments/{exp_id}/calculate` | Evaluate `calculations` formulas against `values` → writes `result` on each calculation → returns updated context |
 
+**Calculations (stateless)**
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/calculations/evaluate` | Dry-run a draft template's formulas against trial values. No DB access, nothing persisted, no template or experiment needs to exist. Always 200 (barring a malformed body) — each calculation reports its own result or error |
+
+Used by the onboarding template builder so an author can run their formulas
+before saving. Body takes `calculations` (required) plus optional `clientForm`,
+`labForm` and `values`; the forms are only read for `config.default`, so a
+formula can be tested against defaults alone.
+
 **Reports**
 
 | Method | Path | Description |
@@ -210,8 +223,14 @@ Template `name`/`description` are DB columns only — not duplicated inside the 
 
 ### Calculation engine (`app/services/calculation_service.py`)
 - `collect_values(context)` — merges `values` with `config.default` from clientForm/labForm questions.
-- `_eval_calculations(values, formulas)` — evaluates each formula in order in a restricted namespace (`round`, `abs`, `min`, `max`, `sum`, `len`, `mean`, `median`, `stdev`, `math`, plus `values` dict). Later expressions can reference earlier results.
+- `_resolve_order(formulas)` — returns `(evaluation order, unresolvable names)`. A formula is ordered after everything it references; a dependency cycle (and anything downstream of one) comes back in the second list instead of raising, so each caller decides whether that is fatal.
+- `_eval_one(name, expr, namespace)` — evaluates one formula in a restricted namespace (`round`, `abs`, `min`, `max`, `sum`, `len`, `mean`, `median`, `stdev`, `math`, plus the `values` dict) and returns `(value, error)` where `error` is a `CalculationError` with a `kind` (`syntax`, `dunder`, `undefined_name`, `missing_value`, `zero_division`, `non_finite`, `runtime`). Later expressions can reference earlier results.
+- `_eval_calculations(values, formulas)` — the fail-fast path: raises `HTTPException(422, error.message)` on the first failure.
 - `calculate(session, exp_id)` — orchestrates: load experiment → collect values → eval → write `calculations[].result` → commit → return updated experiment context.
+- `dry_run(body)` — the partial path used by `POST /api/calculations/evaluate`. Same engine, but every calculation reports its own outcome (`ok` / `error` / `skipped`) so a template author sees all their mistakes at once. Downstream calculations of a failure are `skipped` rather than cascading a confusing `NameError`, and `missing_values` lists question ids a formula reads as `values['id']` but never received — the signal that catches a typo'd id.
+
+When adding an error case, add it to `_eval_one` so both paths pick it up. Do not
+catch it in `_eval_calculations` or `dry_run` directly.
 
 ### Conflict (409) responses
 - `POST /api/samples` — duplicate sample name
