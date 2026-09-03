@@ -4,7 +4,7 @@ import uuid
 
 from httpx import AsyncClient
 
-from tests.conftest import COAL_ID, DIVISOR_TEMPLATE_ID, PROXIMATE_TEMPLATE_ID
+from tests.conftest import COAL_ID, DIVISOR_TEMPLATE_ID, NO_PDF_TEMPLATE_ID, PROXIMATE_TEMPLATE_ID
 
 _DIVISOR_EXP_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000002")
 
@@ -67,6 +67,17 @@ async def test_create_experiment_unknown_template_returns_404(client: AsyncClien
         "lineage_id": str(uuid.uuid4()),
     }
     assert (await client.post("/api/experiments", json=body)).status_code == 404
+
+
+async def test_create_experiment_template_without_pdf_returns_422(client: AsyncClient):
+    body = {
+        "exp_id": str(uuid.uuid4()),
+        "sample_id": str(COAL_ID),
+        "lineage_id": str(NO_PDF_TEMPLATE_ID),
+    }
+    response = await client.post("/api/experiments", json=body)
+    assert response.status_code == 422
+    assert "PDF report layout" in response.json()["detail"]
 
 
 async def test_list_experiments_returns_200(client: AsyncClient):
