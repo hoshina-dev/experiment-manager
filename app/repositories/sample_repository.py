@@ -37,6 +37,7 @@ async def list_templates(
     """Return only the current version of each template for a sample."""
     result = await session.execute(
         select(ExperimentTemplate)
+        .options(selectinload(ExperimentTemplate.pdf_template))
         .where(
             ExperimentTemplate.sample_type_id == sample_type_id,
             ExperimentTemplate.is_current.is_(True),
@@ -53,6 +54,7 @@ async def list_template_history(
     """Return all versions for a lineage, newest first."""
     result = await session.execute(
         select(ExperimentTemplate)
+        .options(selectinload(ExperimentTemplate.pdf_template))
         .where(
             ExperimentTemplate.sample_type_id == sample_type_id,
             ExperimentTemplate.lineage_id == lineage_id,
@@ -68,7 +70,9 @@ async def get_template(
 ) -> ExperimentTemplate | None:
     """Fetch a specific version row by its id."""
     result = await session.execute(
-        select(ExperimentTemplate).where(
+        select(ExperimentTemplate)
+        .options(selectinload(ExperimentTemplate.pdf_template))
+        .where(
             ExperimentTemplate.id == template_id,
             ExperimentTemplate.sample_type_id == sample_type_id,
             ExperimentTemplate.deleted_at.is_(None),
@@ -190,6 +194,7 @@ async def create_template(
     )
     session.add(row)
     await session.flush()
+    row.pdf_template = None  # brand-new row, avoid triggering a lazy load
     return row
 
 
@@ -256,6 +261,7 @@ async def create_new_template_version(
     new_pdf = PdfTemplate(template_id=new_row.id, components=final_components, is_current=True)
     session.add(new_pdf)
     await session.flush()
+    new_row.pdf_template = new_pdf  # keep in-memory relationship consistent, avoid a lazy load
 
     return new_row
 

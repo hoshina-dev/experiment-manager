@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
 
 from app.config import settings
 from app.database import get_db
-from app.db_models import Base, ExperimentTemplate, SampleType
+from app.db_models import Base, ExperimentTemplate, PdfTemplate, SampleType
 from main import app
 
 # Fixed IDs shared across all tests — must match seed_catalogue fixture below
@@ -20,6 +20,7 @@ TOMATO_ID = uuid.UUID("a1b2c3d4-0001-0001-0001-000000000001")
 PROXIMATE_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0001-0001-0001-000000000001")
 CALORIFIC_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0002-0002-0002-000000000002")
 DIVISOR_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0003-0003-0003-000000000003")
+NO_PDF_TEMPLATE_ID = uuid.UUID("b2c3d4e5-0004-0004-0004-000000000004")
 
 
 @pytest.fixture(scope="session")
@@ -112,6 +113,43 @@ async def seed_catalogue(test_engine):
                         },
                     },
                 ),
+                ExperimentTemplate(
+                    id=NO_PDF_TEMPLATE_ID,
+                    lineage_id=NO_PDF_TEMPLATE_ID,
+                    sample_type_id=COAL_ID,
+                    name="No PDF Template",
+                    description="Template intentionally seeded without a PdfTemplate row",
+                    version=1,
+                    is_current=True,
+                    template={
+                        "clientForm": {"name": "Client", "questions": []},
+                        "labForm": {"name": "Form", "questions": []},
+                        "calculations": {
+                            "result": {"formula": "values['value']", "result": ""}
+                        },
+                    },
+                ),
+            ]
+        )
+        await session.flush()
+        session.add_all(
+            [
+                PdfTemplate(
+                    template_id=PROXIMATE_TEMPLATE_ID,
+                    components=[{"type": "text", "x": 10, "y": 20, "content": "Report"}],
+                    is_current=True,
+                ),
+                PdfTemplate(
+                    template_id=CALORIFIC_TEMPLATE_ID,
+                    components=[{"type": "text", "x": 10, "y": 20, "content": "Report"}],
+                    is_current=True,
+                ),
+                PdfTemplate(
+                    template_id=DIVISOR_TEMPLATE_ID,
+                    components=[{"type": "text", "x": 10, "y": 20, "content": "Report"}],
+                    is_current=True,
+                ),
+                # NO_PDF_TEMPLATE_ID intentionally has no PdfTemplate row.
             ]
         )
         await session.commit()

@@ -58,6 +58,7 @@ class ExperimentTemplateSummary(BaseModel):
     description: str | None = None
     version: int
     is_current: bool
+    has_pdf_template: bool
 
 
 class ExperimentTemplatesResponse(BaseModel):
@@ -79,6 +80,7 @@ class ExperimentTemplateDetail(BaseModel):
     description: str | None = None
     version: int
     is_current: bool
+    has_pdf_template: bool
 
 
 # ---------------------------------------------------------------------------

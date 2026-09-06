@@ -466,3 +466,38 @@ async def test_delete_pdf_template_unknown_returns_404(client: AsyncClient):
     assert (
         await client.delete(f"/api/samples/{COAL_ID}/experiments/{uuid.uuid4()}/pdf")
     ).status_code == 404
+
+
+async def test_create_experiment_template_has_pdf_template_false(client: AsyncClient):
+    created = (
+        await client.post(
+            f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
+        )
+    ).json()
+    assert created["has_pdf_template"] is False
+
+
+async def test_experiment_template_has_pdf_template_true_after_upsert(client: AsyncClient):
+    created = (
+        await client.post(
+            f"/api/samples/{COAL_ID}/experiments", json=_NEW_EXPERIMENT_TEMPLATE
+        )
+    ).json()
+    lineage_id = created["lineage_id"]
+    template_id = created["id"]
+    await client.put(
+        f"/api/samples/{COAL_ID}/experiments/{lineage_id}/pdf",
+        json={"components": _PDF_COMPONENTS},
+    )
+    detail = (
+        await client.get(f"/api/samples/{COAL_ID}/experiments/{template_id}")
+    ).json()
+    assert detail["has_pdf_template"] is True
+
+
+async def test_list_experiment_templates_reports_has_pdf_template(client: AsyncClient):
+    experiments = (
+        await client.get(f"/api/samples/{COAL_ID}/experiments")
+    ).json()["experiments"]
+    by_id = {t["id"]: t for t in experiments}
+    assert by_id[str(PROXIMATE_TEMPLATE_ID)]["has_pdf_template"] is True

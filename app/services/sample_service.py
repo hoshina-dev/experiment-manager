@@ -48,6 +48,10 @@ def _template_jsonb(body: ExperimentTemplateCreate | ExperimentTemplateUpdate) -
     }
 
 
+def _has_pdf_template(t: ExperimentTemplate) -> bool:
+    return t.pdf_template is not None
+
+
 def _to_summary(t: ExperimentTemplate) -> ExperimentTemplateSummary:
     return ExperimentTemplateSummary(
         id=t.id,
@@ -56,6 +60,7 @@ def _to_summary(t: ExperimentTemplate) -> ExperimentTemplateSummary:
         description=t.description,
         version=t.version,
         is_current=t.is_current,
+        has_pdf_template=_has_pdf_template(t),
     )
 
 
@@ -67,6 +72,7 @@ def _to_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
         description=t.description,
         version=t.version,
         is_current=t.is_current,
+        has_pdf_template=_has_pdf_template(t),
         **t.template,
     )
 
