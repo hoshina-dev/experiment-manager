@@ -270,6 +270,37 @@ async def test_update_experiment_calculations_can_then_be_evaluated(
     assert response.json()["calculations"]["bad"]["result"] == 0
 
 
+async def test_update_experiment_values_after_calculation_override_preserves_override(
+    client: AsyncClient,
+):
+    """A per-experiment formula override (PUT /calculations) must survive a
+    later values-only save (PUT /{exp_id}) instead of being flagged as
+    template drift or silently reverted to the template's formula.
+    """
+    await client.post("/api/experiments", json=_DIVISOR_VALID_BODY)
+    await client.put(
+        f"/api/experiments/{_DIVISOR_EXP_ID}/calculations",
+        json={"calculations": {"bad": {"formula": "values['value'] * 2"}}},
+    )
+    current = (
+        await client.get(f"/api/experiments/{_DIVISOR_EXP_ID}")
+    ).json()
+
+    response = await client.put(
+        f"/api/experiments/{_DIVISOR_EXP_ID}",
+        json={
+            "clientForm": current["clientForm"],
+            "labForm": current["labForm"],
+            "calculations": current["calculations"],
+            "values": {"value": 9},
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["values"]["value"] == 9
+    assert body["calculations"]["bad"]["formula"] == "values['value'] * 2"
+
+
 async def test_update_experiment_calculations_invalid_name_returns_422(
     client: AsyncClient,
 ):
