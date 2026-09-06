@@ -138,6 +138,54 @@ Requires `TEST_DATA_SOURCE_NAME` in `.env`. The test suite creates its own schem
 | `PUT` | `/api/experiments/{exp_id}` | Update experiment state (worker fills in measured values) |
 | `DELETE` | `/api/experiments/{exp_id}` | Soft delete |
 
+### Calculations
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/calculations/evaluate` | Dry-run a draft template's formulas against trial values |
+
+Stateless — no database access, nothing persisted, and neither a saved template
+nor an experiment has to exist. This is what the onboarding template builder
+calls so an author can run their formulas before saving them.
+
+Unlike `POST /api/experiments/{exp_id}/calculate`, which aborts with a 422 on
+the first bad formula, the dry run always returns 200 and reports each
+calculation separately — so ten formulas with one typo show nine results and
+one error rather than a single opaque failure:
+
+```jsonc
+// POST /api/calculations/evaluate
+{
+  "calculations": {
+    "loss":     { "formula": "values['start_mass'] - values['end_mass']" },
+    "loss_pct": { "formula": "round(100 * loss / values['start_mas'], 1)" }
+  },
+  "values": { "start_mass": 20.0, "end_mass": 15.0 }
+}
+```
+
+```jsonc
+{
+  "values": { "start_mass": 20.0, "end_mass": 15.0 },
+  "order": ["loss", "loss_pct"],
+  "calculations": {
+    "loss":     { "formula": "...", "status": "ok", "result": 5.0, "error": null },
+    "loss_pct": { "formula": "...", "status": "error", "result": null,
+                  "error": { "kind": "missing_value",
+                             "message": "Missing value in 'loss_pct': no answer for 'start_mas'",
+                             "names": ["start_mas"] } }
+  },
+  "missing_values": ["start_mas"],       // question ids read but never supplied
+  "duplicate_question_ids": []
+}
+```
+
+`status` is `ok`, `error`, or `skipped` (a calculation whose dependency
+failed). `error.kind` is one of `syntax`, `dunder`, `undefined_name`,
+`missing_value`, `zero_division`, `non_finite`, `circular`,
+`dependency_failed`, `runtime`. `clientForm` / `labForm` are optional and read
+only for `config.default`, so formulas can be tested against defaults alone.
+
 ### PDF reports
 
 | Method | Path | Description |
