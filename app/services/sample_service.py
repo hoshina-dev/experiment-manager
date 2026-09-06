@@ -49,7 +49,7 @@ def _template_jsonb(body: ExperimentTemplateCreate | ExperimentTemplateUpdate) -
 
 
 def _has_pdf_template(t: ExperimentTemplate) -> bool:
-    return t.pdf_template is not None and bool(t.pdf_template.components)
+    return t.pdf_template is not None
 
 
 def _to_summary(t: ExperimentTemplate) -> ExperimentTemplateSummary:
