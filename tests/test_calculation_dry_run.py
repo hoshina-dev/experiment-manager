@@ -315,3 +315,22 @@ async def test_dry_run_persists_nothing(client: AsyncClient):
     after = (await client.get("/api/experiments")).json()["experiments"]
 
     assert before == after
+
+
+async def test_runaway_formula_rejected_rather_than_hanging(client: AsyncClient):
+    """A formula that never terminates must not take the endpoint with it.
+
+    This ran inline on the event loop before the sandbox, so the request never
+    returned and the whole service stopped answering anyone — including users
+    who had run no calculation at all.
+    """
+    response = await client.post(
+        ENDPOINT,
+        json={
+            "calculations": {"r": {"formula": "i = 0\nwhile True:\n    i = i + 1"}},
+            "values": {},
+        },
+    )
+
+    assert response.status_code == 422
+    assert "CPU limit" in response.json()["detail"]
