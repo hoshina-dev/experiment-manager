@@ -7,11 +7,13 @@ user until the process was killed by hand.
 """
 
 import asyncio
+import threading
 import time
 
 import pytest
 from fastapi import HTTPException
 
+from app.config import calc_sandbox_settings
 from app.services import sandbox
 from app.services.calculation_service import _eval_calculations
 
@@ -31,6 +33,53 @@ def test_runaway_formula_is_killed_and_reported():
     # Bounded by the CPU budget plus process start-up — nowhere near the
     # forever it used to run for.
     assert elapsed < 10, f"took {elapsed:.1f}s — the limit did not fire"
+
+
+def test_runaway_is_reported_at_its_cpu_limit_not_its_wall_limit():
+    """A killed child must be noticed at once, not waited out.
+
+    Blocking on the queue for the full wall deadline made every runaway cost
+    5s even though the kernel had reclaimed it at 2s — the user waited on a
+    deadline that had already stopped mattering.
+    """
+    started = time.perf_counter()
+    with pytest.raises(HTTPException):
+        sandbox.run_bounded(_eval_calculations, {}, RUNAWAY)
+    elapsed = time.perf_counter() - started
+
+    wall = calc_sandbox_settings.wall_seconds
+    assert elapsed < wall, (
+        f"took {elapsed:.2f}s, i.e. the full {wall}s wall budget — "
+        "the parent is not noticing the child's death"
+    )
+
+
+def test_concurrent_calculations_are_capped():
+    """Spamming calculate must not spawn a worker per click.
+
+    The per-formula CPU limit bounds one calculation; without a concurrency
+    cap it bounds nothing in aggregate, and a handful of clicks occupies every
+    core.
+    """
+    limit = calc_sandbox_settings.max_concurrent
+    outcomes: list[str] = []
+
+    def attempt() -> None:
+        try:
+            sandbox.run_bounded(_eval_calculations, {}, RUNAWAY)
+            outcomes.append("ok")
+        except HTTPException as exc:
+            outcomes.append(str(exc.status_code))
+
+    threads = [threading.Thread(target=attempt) for _ in range(limit + 3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(30)
+
+    assert (
+        "429" in outcomes
+    ), f"no request was refused ({outcomes}) — the cap is not being enforced"
 
 
 def test_normal_formula_still_evaluates():

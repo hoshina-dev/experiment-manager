@@ -120,6 +120,12 @@ class CalculationSandboxSettings(BaseSettings):
     cpu_seconds: int = 2
     wall_seconds: float = 5.0
     nice: int = 10
+    # Concurrent sandboxes. Without a cap, repeatedly pressing "calculate"
+    # spawns a worker per click and the per-formula CPU limit no longer bounds
+    # anything in aggregate — a handful of clicks can occupy every core.
+    max_concurrent: int = 2
+    # How long a request waits for a free slot before giving up with 429.
+    queue_seconds: float = 2.0
 
     model_config = SettingsConfigDict(
         env_prefix="CALC_SANDBOX_",

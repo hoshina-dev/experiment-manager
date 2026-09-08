@@ -26,6 +26,8 @@ import os
 import queue as queue_mod
 import resource
 import signal
+import threading
+import time
 from collections.abc import Callable
 from typing import Any, TypeVar
 
@@ -41,6 +43,13 @@ T = TypeVar("T")
 # multiprocessing must not inherit the parent's state (open DB connections, the
 # running event loop); "spawn" starts a clean interpreter.
 _ctx = mp.get_context("spawn")
+
+# Caps how many formulas may run at once. The per-formula CPU limit bounds one
+# calculation; without this it bounds nothing in aggregate, because pressing
+# "calculate" repeatedly spawns a worker per click. Requests that cannot get a
+# slot are refused rather than queued, so a burst degrades into fast 429s
+# instead of a growing backlog.
+_slots = threading.BoundedSemaphore(calc_sandbox_settings.max_concurrent)
 
 
 def _child(func: Callable[..., Any], args: tuple, out: Any) -> None:
@@ -74,6 +83,14 @@ def run_bounded(func: Callable[..., T], *args: Any) -> T:
     callers keep their existing error handling.
     """
     limits = calc_sandbox_settings
+
+    if not _slots.acquire(timeout=limits.queue_seconds):
+        raise HTTPException(
+            429,
+            "Too many calculations running. Wait for the current ones to "
+            "finish and try again.",
+        )
+
     out = _ctx.Queue()
     proc = _ctx.Process(target=_child, args=(func, args, out), daemon=True)
 
@@ -82,16 +99,12 @@ def run_bounded(func: Callable[..., T], *args: Any) -> T:
         span.set_attribute("sandbox.wall_seconds", limits.wall_seconds)
         proc.start()
         try:
-            # Read before joining: a large result would otherwise fill the pipe
-            # and deadlock the child on put() while the parent waits on join().
-            status, payload = out.get(timeout=limits.wall_seconds)
-        except queue_mod.Empty:
-            span.set_attribute("sandbox.outcome", _outcome(proc))
-            raise _limit_error(proc, limits) from None
+            status, payload = _collect(proc, out, limits)
         finally:
             if proc.is_alive():
                 proc.kill()
             proc.join()
+            _slots.release()
 
         span.set_attribute("sandbox.outcome", status)
         if status == "error":
@@ -99,10 +112,27 @@ def run_bounded(func: Callable[..., T], *args: Any) -> T:
         return payload
 
 
-def _outcome(proc: Any) -> str:
-    if proc.is_alive():
-        return "wall_timeout"
-    return "cpu_exceeded" if _killed_by_cpu(proc) else "died"
+def _collect(proc: Any, out: Any, limits: Any) -> tuple[str, Any]:
+    """Wait for the child's result, noticing promptly if it dies without one.
+
+    Blocking on `out.get(timeout=wall_seconds)` would make every runaway cost
+    the full wall-clock budget: the kernel kills the child at its CPU limit,
+    but nothing is ever put on the queue, so the parent waits out a deadline
+    that has already become irrelevant. Polling lets a formula killed at its
+    2s CPU limit be reported at 2s rather than 5s.
+    """
+    deadline = time.monotonic() + limits.wall_seconds
+    while True:
+        try:
+            # Read before joining: a large result would otherwise fill the pipe
+            # and deadlock the child on put() while the parent waits on join().
+            return out.get(timeout=0.05)
+        except queue_mod.Empty:
+            if not proc.is_alive():
+                # Exited without a result — the kernel reclaimed it.
+                raise _limit_error(proc, limits) from None
+            if time.monotonic() >= deadline:
+                raise _limit_error(proc, limits) from None
 
 
 def _killed_by_cpu(proc: Any) -> bool:
