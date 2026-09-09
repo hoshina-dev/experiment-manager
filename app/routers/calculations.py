@@ -12,4 +12,4 @@ router = APIRouter(prefix="/api/calculations", tags=["calculations"])
 async def evaluate_calculations(
     body: CalculationDryRunRequest,
 ) -> CalculationDryRunResponse:
-    return calc_service.dry_run(body)
+    return await calc_service.dry_run_sandboxed(body)

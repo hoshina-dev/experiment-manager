@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import math
 import uuid
 from typing import Any
@@ -11,6 +12,7 @@ from app import form_schema
 from app.models import (CalculationDryRunRequest, CalculationDryRunResponse,
                         CalculationError, CalculationOutcome, ExperimentDetail)
 from app.repositories import experiment_repository as experiment_repo
+from app.services import sandbox
 from app.services.experiment_service import _row_to_detail
 
 tracer = trace.get_tracer(__name__)
@@ -206,6 +208,18 @@ def _eval_calculations(
     return results
 
 
+async def dry_run_sandboxed(
+    body: CalculationDryRunRequest,
+) -> CalculationDryRunResponse:
+    """`dry_run` under the sandbox, off the event loop.
+
+    The whole run goes into one subprocess rather than one per formula: the
+    formulas share a namespace and are evaluated in dependency order, and the
+    CPU budget is meant to cover the request, not each expression in it.
+    """
+    return await asyncio.to_thread(sandbox.run_bounded, dry_run, body)
+
+
 def dry_run(body: CalculationDryRunRequest) -> CalculationDryRunResponse:
     """Evaluate a draft template's formulas without touching the database.
 
@@ -301,7 +315,11 @@ async def calculate(session: AsyncSession, exp_id: uuid.UUID) -> ExperimentDetai
 
         values = form_schema.collect_values(row.state)
         formulas = form_schema.calculation_formulas(row.state.get("calculations"))
-        results = _eval_calculations(values, formulas)
+        # Off the event loop and under the sandbox's limits: a formula that
+        # never terminates must not take the service down with it.
+        results = await asyncio.to_thread(
+            sandbox.run_bounded, _eval_calculations, values, formulas
+        )
 
         calculations = form_schema.apply_calculation_results(
             row.state.get("calculations"), results

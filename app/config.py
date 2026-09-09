@@ -108,5 +108,33 @@ class ReportWorkerSettings(BaseSettings):
     )
 
 
+class CalculationSandboxSettings(BaseSettings):
+    """Limits applied to every user-authored formula.
+
+    `cpu_seconds` is enforced by the kernel (RLIMIT_CPU), so a formula that
+    never yields still dies. `wall_seconds` backstops a child that stalls
+    without burning CPU. `nice` lowers the worker's scheduling priority so
+    that while it runs it cannot starve the API serving everyone else.
+    """
+
+    cpu_seconds: int = 2
+    wall_seconds: float = 5.0
+    nice: int = 10
+    # Concurrent sandboxes. Without a cap, repeatedly pressing "calculate"
+    # spawns a worker per click and the per-formula CPU limit no longer bounds
+    # anything in aggregate — a handful of clicks can occupy every core.
+    max_concurrent: int = 2
+    # How long a request waits for a free slot before giving up with 429.
+    queue_seconds: float = 2.0
+
+    model_config = SettingsConfigDict(
+        env_prefix="CALC_SANDBOX_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
 r2_settings = R2Settings()
 report_worker_settings = ReportWorkerSettings()
+calc_sandbox_settings = CalculationSandboxSettings()
