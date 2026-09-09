@@ -81,7 +81,7 @@ async def create_experiment(
                 detail=f'Template lineage "{body.lineage_id}" not found for sample "{body.sample_id}"',
             )
 
-        if template_row.pdf_template is None or not template_row.pdf_template.components:
+        if template_row.pdf_template is None:
             raise HTTPException(
                 status_code=422,
                 detail="Template has no PDF report layout defined",
