@@ -70,6 +70,8 @@ psql $DATABASE_URL -f sql_mock/906_seed_coal_heat_capacity_experiment.up.sql
 psql $DATABASE_URL -f sql_mock/907_seed_coal_calorific_value_experiment.up.sql
 psql $DATABASE_URL -f sql_mock/908_seed_tomato_analysis_experiment_template.up.sql
 psql $DATABASE_URL -f sql_mock/909_seed_tomato_analysis_pdf_template.up.sql
+psql $DATABASE_URL -f sql_mock/910_seed_repeatable_measurements.up.sql
+psql $DATABASE_URL -f migrations/008_catalogue_web_settings.up.sql
 ```
 
 Template JSON in `sql_mock/` follows the form-poc schema-bundle: `clientForm`, `labForm`, `calculations` (with `{ formula, result? }`), nested question `config`. Experiment snapshots add top-level `values` and metadata (`name`, `description` from DB columns).
@@ -237,3 +239,41 @@ On `PUT` the worker sends `clientForm`, `labForm`, `calculations`, and `values`.
 uv run black .
 uv run isort .
 ```
+
+
+## Catalogue visibility and order
+
+Specimens expose `is_visible_on_web` and `display_order`. Experiment-template
+summaries and details expose the same fields from
+`experiment_template_web_settings`, keyed by the stable template lineage.
+They do not form part of the versioned forms or frozen experiment context.
+
+| Method | Path | Body |
+|---|---|---|
+| PATCH | `/api/samples/{sample_id}/web-visibility` | `{ "is_visible_on_web": true }` |
+| PUT | `/api/samples/web-order` | `{ "sample_ids": ["..."] }` |
+| PATCH | `/api/samples/{sample_id}/experiments/{lineage_id}/web-visibility` | `{ "is_visible_on_web": true }` |
+| PUT | `/api/samples/{sample_id}/experiments/web-order` | `{ "lineage_ids": ["..."] }` |
+
+Order payloads contain every active item in the scope, including hidden items.
+Positions are one-based and assigned atomically. Duplicate IDs return 422,
+unknown or incorrectly scoped IDs return 404, and a missing item (a stale
+collection) returns 409. Creation and reordering serialize per collection;
+new items append to the end and start hidden. Visibility is only a homepage
+presentation setting: a current template still requires a non-empty PDF layout
+to create an experiment, regardless of visibility.
+
+For an **existing installation**, apply migration
+`008_catalogue_web_settings.up.sql` before deploying the updated API, then deploy
+ChemFox with its matching generated API types. This backfills all existing active
+items as visible and preserves their alphabetical order. Template and PDF edits
+retain the same lineage settings; metadata-only edits do not create versions.
+
+For a **fresh development database**, apply 008 after the legacy seed SQL as
+shown above (the Compose initializer does this last). The seeds insert the old
+schema shape; applying 008 afterward also backfills their lineage settings.
+Do not rerun development seeds against an existing deployment.
+
+Rollback the applications before running
+`008_catalogue_web_settings.down.sql`. The rollback removes only catalogue
+settings; it does not change templates, PDF layouts or experiment contexts.

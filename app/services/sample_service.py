@@ -11,12 +11,23 @@ import app.repositories.experiment_repository as experiment_repo
 import app.repositories.sample_repository as repo
 from app.db_models import ExperimentTemplate
 from app.form_schema import find_duplicate_question_ids
-from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
-                        ExperimentTemplateHistoryResponse,
-                        ExperimentTemplatesResponse, ExperimentTemplateSummary,
-                        ExperimentTemplateUpdate, PdfTemplateBody,
-                        PdfTemplateResponse, SampleCreate, SamplesListResponse,
-                        SampleSummary, SampleUpdate)
+from app.models import (
+    ExperimentTemplateCreate,
+    ExperimentTemplateDetail,
+    ExperimentTemplateHistoryResponse,
+    ExperimentTemplatesResponse,
+    ExperimentTemplateSummary,
+    ExperimentTemplateUpdate,
+    PdfTemplateBody,
+    PdfTemplateResponse,
+    SampleCreate,
+    SamplesListResponse,
+    SampleSummary,
+    SampleUpdate,
+    SampleWebOrder,
+    TemplateWebOrder,
+    WebVisibilityUpdate,
+)
 from app.validation import FormSchemaError, validate_form
 
 tracer = trace.get_tracer(__name__)
@@ -49,7 +60,7 @@ def _template_jsonb(body: ExperimentTemplateCreate | ExperimentTemplateUpdate) -
 
 
 def _has_pdf_template(t: ExperimentTemplate) -> bool:
-    return t.pdf_template is not None
+    return t.pdf_template is not None and bool(t.pdf_template.components)
 
 
 def _to_summary(t: ExperimentTemplate) -> ExperimentTemplateSummary:
@@ -61,6 +72,8 @@ def _to_summary(t: ExperimentTemplate) -> ExperimentTemplateSummary:
         version=t.version,
         is_current=t.is_current,
         has_pdf_template=_has_pdf_template(t),
+        is_visible_on_web=t.web_settings.is_visible_on_web if t.web_settings else False,
+        display_order=t.web_settings.display_order if t.web_settings else 1,
     )
 
 
@@ -73,6 +86,8 @@ def _to_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
         version=t.version,
         is_current=t.is_current,
         has_pdf_template=_has_pdf_template(t),
+        is_visible_on_web=t.web_settings.is_visible_on_web if t.web_settings else False,
+        display_order=t.web_settings.display_order if t.web_settings else 1,
         **t.template,
     )
 
@@ -80,12 +95,7 @@ def _to_detail(t: ExperimentTemplate) -> ExperimentTemplateDetail:
 async def get_samples(session: AsyncSession) -> SamplesListResponse:
     with tracer.start_as_current_span("sample_service.get_samples"):
         rows = await repo.list_sample_types(session)
-        return SamplesListResponse(
-            samples=[
-                SampleSummary(id=r.id, name=r.name, description=r.description)
-                for r in rows
-            ]
-        )
+        return SamplesListResponse(samples=[_sample_summary(r) for r in rows])
 
 
 async def get_sample(session: AsyncSession, sample_id: uuid.UUID) -> SampleSummary:
@@ -94,7 +104,7 @@ async def get_sample(session: AsyncSession, sample_id: uuid.UUID) -> SampleSumma
         row = await repo.get_sample_type(session, sample_id)
         if row is None:
             raise HTTPException(404, f'Sample "{sample_id}" not found')
-        return SampleSummary(id=row.id, name=row.name, description=row.description)
+        return _sample_summary(row)
 
 
 async def create_sample(session: AsyncSession, body: SampleCreate) -> SampleSummary:
@@ -105,7 +115,7 @@ async def create_sample(session: AsyncSession, body: SampleCreate) -> SampleSumm
         except IntegrityError:
             await session.rollback()
             raise HTTPException(409, f'Sample "{body.name}" already exists')
-        return SampleSummary(id=row.id, name=row.name, description=row.description)
+        return _sample_summary(row)
 
 
 async def update_sample(
@@ -123,12 +133,13 @@ async def update_sample(
         except IntegrityError:
             await session.rollback()
             raise HTTPException(409, f'Sample name "{body.name}" already taken')
-        return SampleSummary(id=row.id, name=row.name, description=row.description)
+        return _sample_summary(row)
 
 
 async def delete_sample(session: AsyncSession, sample_id: uuid.UUID) -> None:
     with tracer.start_as_current_span("sample_service.delete_sample") as span:
         span.set_attribute("sample.id", str(sample_id))
+        await repo.lock_web_collection(session)
         if not await repo.delete_sample_type(session, sample_id):
             raise HTTPException(404, f'Sample "{sample_id}" not found')
         await session.commit()
@@ -374,6 +385,91 @@ async def delete_experiment_template(
     ) as span:
         span.set_attribute("sample.id", str(sample_id))
         span.set_attribute("template.id", str(template_id))
+        await repo.lock_web_collection(session, sample_id)
         if not await repo.delete_template(session, sample_id, template_id):
             raise HTTPException(404, f'Experiment template "{template_id}" not found')
         await session.commit()
+
+
+def _sample_summary(row) -> SampleSummary:
+    return SampleSummary(
+        id=row.id,
+        name=row.name,
+        description=row.description,
+        is_visible_on_web=row.is_visible_on_web,
+        display_order=row.display_order,
+    )
+
+
+def _validate_web_order(ids: list[uuid.UUID], current: set[uuid.UUID]) -> None:
+    if len(ids) != len(set(ids)):
+        raise HTTPException(422, "Order contains duplicate IDs")
+    if set(ids) - current:
+        raise HTTPException(404, "Order contains unknown or incorrectly scoped IDs")
+    if set(ids) != current:
+        raise HTTPException(409, "Catalogue changed. Refresh and try again")
+
+
+async def update_sample_web_visibility(
+    session: AsyncSession, sample_id: uuid.UUID, body: WebVisibilityUpdate
+) -> SampleSummary:
+    with tracer.start_as_current_span(
+        "sample_service.update_sample_web_visibility"
+    ) as span:
+        span.set_attribute("sample.id", str(sample_id))
+        row = await repo.get_sample_type(session, sample_id)
+        if row is None:
+            raise HTTPException(404, f'Sample "{sample_id}" not found')
+        await repo.set_sample_visibility(session, row, body.is_visible_on_web)
+        await session.commit()
+        return _sample_summary(row)
+
+
+async def update_samples_web_order(
+    session: AsyncSession, body: SampleWebOrder
+) -> SamplesListResponse:
+    with tracer.start_as_current_span("sample_service.update_samples_web_order"):
+        await repo.lock_web_collection(session)
+        rows = await repo.list_sample_types(session)
+        _validate_web_order(body.sample_ids, {row.id for row in rows})
+        await repo.reorder_samples(session, rows, body.sample_ids)
+        await session.commit()
+        return await get_samples(session)
+
+
+async def update_template_web_visibility(
+    session: AsyncSession,
+    sample_id: uuid.UUID,
+    lineage_id: uuid.UUID,
+    body: WebVisibilityUpdate,
+) -> ExperimentTemplateSummary:
+    with tracer.start_as_current_span(
+        "sample_service.update_template_web_visibility"
+    ) as span:
+        span.set_attribute("sample.id", str(sample_id))
+        span.set_attribute("lineage.id", str(lineage_id))
+        if await repo.get_sample_type(session, sample_id) is None:
+            raise HTTPException(404, f'Sample "{sample_id}" not found')
+        row = await repo.get_current_template_by_lineage(session, sample_id, lineage_id)
+        if row is None or row.web_settings is None:
+            raise HTTPException(404, f'Template lineage "{lineage_id}" not found')
+        await repo.set_template_visibility(session, row, body.is_visible_on_web)
+        await session.commit()
+        return _to_summary(row)
+
+
+async def update_templates_web_order(
+    session: AsyncSession, sample_id: uuid.UUID, body: TemplateWebOrder
+) -> ExperimentTemplatesResponse:
+    with tracer.start_as_current_span(
+        "sample_service.update_templates_web_order"
+    ) as span:
+        span.set_attribute("sample.id", str(sample_id))
+        await repo.lock_web_collection(session, sample_id)
+        if await repo.get_sample_type(session, sample_id) is None:
+            raise HTTPException(404, f'Sample "{sample_id}" not found')
+        rows = await repo.list_templates(session, sample_id)
+        _validate_web_order(body.lineage_ids, {row.lineage_id for row in rows})
+        await repo.reorder_templates(session, rows, body.lineage_ids)
+        await session.commit()
+        return await get_experiment_templates(session, sample_id)

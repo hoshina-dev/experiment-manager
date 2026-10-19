@@ -3,18 +3,23 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db_models import ExperimentTemplate, PdfTemplate, SampleType
+from app.db_models import (
+    ExperimentTemplate,
+    ExperimentTemplateWebSettings,
+    PdfTemplate,
+    SampleType,
+)
 
 
 async def list_sample_types(session: AsyncSession) -> list[SampleType]:
     result = await session.execute(
         select(SampleType)
         .where(SampleType.deleted_at.is_(None))
-        .order_by(SampleType.name)
+        .order_by(SampleType.display_order, SampleType.name, SampleType.id)
     )
     return list(result.scalars().all())
 
@@ -37,13 +42,24 @@ async def list_templates(
     """Return only the current version of each template for a sample."""
     result = await session.execute(
         select(ExperimentTemplate)
-        .options(selectinload(ExperimentTemplate.pdf_template))
+        .options(
+            selectinload(ExperimentTemplate.pdf_template),
+            selectinload(ExperimentTemplate.web_settings),
+        )
         .where(
             ExperimentTemplate.sample_type_id == sample_type_id,
             ExperimentTemplate.is_current.is_(True),
             ExperimentTemplate.deleted_at.is_(None),
         )
-        .order_by(ExperimentTemplate.name)
+        .outerjoin(
+            ExperimentTemplateWebSettings,
+            ExperimentTemplateWebSettings.lineage_id == ExperimentTemplate.lineage_id,
+        )
+        .order_by(
+            ExperimentTemplateWebSettings.display_order.asc().nulls_last(),
+            ExperimentTemplate.name,
+            ExperimentTemplate.id,
+        )
     )
     return list(result.scalars().all())
 
@@ -54,7 +70,10 @@ async def list_template_history(
     """Return all versions for a lineage, newest first."""
     result = await session.execute(
         select(ExperimentTemplate)
-        .options(selectinload(ExperimentTemplate.pdf_template))
+        .options(
+            selectinload(ExperimentTemplate.pdf_template),
+            selectinload(ExperimentTemplate.web_settings),
+        )
         .where(
             ExperimentTemplate.sample_type_id == sample_type_id,
             ExperimentTemplate.lineage_id == lineage_id,
@@ -71,7 +90,10 @@ async def get_template(
     """Fetch a specific version row by its id."""
     result = await session.execute(
         select(ExperimentTemplate)
-        .options(selectinload(ExperimentTemplate.pdf_template))
+        .options(
+            selectinload(ExperimentTemplate.pdf_template),
+            selectinload(ExperimentTemplate.web_settings),
+        )
         .where(
             ExperimentTemplate.id == template_id,
             ExperimentTemplate.sample_type_id == sample_type_id,
@@ -103,7 +125,10 @@ async def get_current_template_by_lineage(
     """
     stmt = (
         select(ExperimentTemplate)
-        .options(selectinload(ExperimentTemplate.pdf_template))
+        .options(
+            selectinload(ExperimentTemplate.pdf_template),
+            selectinload(ExperimentTemplate.web_settings),
+        )
         .where(
             ExperimentTemplate.lineage_id == lineage_id,
             ExperimentTemplate.sample_type_id == sample_type_id,
@@ -142,7 +167,18 @@ async def get_templates_by_ids(
 async def create_sample_type(
     session: AsyncSession, name: str, description: str | None
 ) -> SampleType:
-    row = SampleType(name=name, description=description)
+    await lock_web_collection(session)
+    position = await session.scalar(
+        select(func.coalesce(func.max(SampleType.display_order), 0) + 1).where(
+            SampleType.deleted_at.is_(None)
+        )
+    )
+    row = SampleType(
+        name=name,
+        description=description,
+        display_order=position,
+        is_visible_on_web=False,
+    )
     session.add(row)
     await session.flush()
     return row
@@ -182,7 +218,29 @@ async def create_template(
     template_data: dict,
 ) -> ExperimentTemplate:
     """Insert a brand-new template (v1, starts its own lineage)."""
+    await lock_web_collection(session, sample_type_id)
     new_lineage_id = uuid.uuid4()
+    position = await session.scalar(
+        select(
+            func.coalesce(func.max(ExperimentTemplateWebSettings.display_order), 0) + 1
+        )
+        .join(
+            ExperimentTemplate,
+            ExperimentTemplate.lineage_id == ExperimentTemplateWebSettings.lineage_id,
+        )
+        .where(
+            ExperimentTemplate.sample_type_id == sample_type_id,
+            ExperimentTemplate.is_current.is_(True),
+            ExperimentTemplate.deleted_at.is_(None),
+        )
+    )
+    settings = ExperimentTemplateWebSettings(
+        lineage_id=new_lineage_id,
+        sample_type_id=sample_type_id,
+        display_order=position,
+        is_visible_on_web=False,
+    )
+    session.add(settings)
     row = ExperimentTemplate(
         lineage_id=new_lineage_id,
         sample_type_id=sample_type_id,
@@ -195,6 +253,7 @@ async def create_template(
     session.add(row)
     await session.flush()
     row.pdf_template = None  # brand-new row, avoid triggering a lazy load
+    row.web_settings = settings
     return row
 
 
@@ -257,11 +316,20 @@ async def create_new_template_version(
     session.add(new_row)
     await session.flush()
 
-    final_components = override_pdf_components if override_pdf_components is not None else old_pdf_components
-    new_pdf = PdfTemplate(template_id=new_row.id, components=final_components, is_current=True)
+    final_components = (
+        override_pdf_components
+        if override_pdf_components is not None
+        else old_pdf_components
+    )
+    new_pdf = PdfTemplate(
+        template_id=new_row.id, components=final_components, is_current=True
+    )
     session.add(new_pdf)
     await session.flush()
-    new_row.pdf_template = new_pdf  # keep in-memory relationship consistent, avoid a lazy load
+    new_row.pdf_template = (
+        new_pdf  # keep in-memory relationship consistent, avoid a lazy load
+    )
+    new_row.web_settings = current.web_settings
 
     return new_row
 
@@ -300,9 +368,7 @@ async def update_pdf_template_in_place(
     return row
 
 
-async def delete_pdf_template(
-    session: AsyncSession, template_id: uuid.UUID
-) -> bool:
+async def delete_pdf_template(session: AsyncSession, template_id: uuid.UUID) -> bool:
     row = await get_pdf_template(session, template_id)
     if row is None:
         return False
@@ -327,3 +393,44 @@ async def delete_template(
         row.is_current = False
     await session.flush()
     return True
+
+
+async def lock_web_collection(
+    session: AsyncSession, sample_id: uuid.UUID | None = None
+) -> None:
+    key = f"catalogue:templates:{sample_id}" if sample_id else "catalogue:samples"
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": key}
+    )
+
+
+async def set_sample_visibility(
+    session: AsyncSession, row: SampleType, visible: bool
+) -> None:
+    row.is_visible_on_web = visible
+    await session.flush()
+
+
+async def set_template_visibility(
+    session: AsyncSession, row: ExperimentTemplate, visible: bool
+) -> None:
+    row.web_settings.is_visible_on_web = visible
+    await session.flush()
+
+
+async def reorder_samples(
+    session: AsyncSession, rows: list[SampleType], ids: list[uuid.UUID]
+) -> None:
+    by_id = {row.id: row for row in rows}
+    for position, sample_id in enumerate(ids, 1):
+        by_id[sample_id].display_order = position
+    await session.flush()
+
+
+async def reorder_templates(
+    session: AsyncSession, rows: list[ExperimentTemplate], ids: list[uuid.UUID]
+) -> None:
+    by_id = {row.lineage_id: row for row in rows}
+    for position, lineage_id in enumerate(ids, 1):
+        by_id[lineage_id].web_settings.display_order = position
+    await session.flush()

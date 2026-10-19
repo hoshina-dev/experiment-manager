@@ -8,11 +8,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.services.sample_service as service
 from app.database import get_db
-from app.models import (ExperimentTemplateCreate, ExperimentTemplateDetail,
-                        ExperimentTemplateHistoryResponse,
-                        ExperimentTemplatesResponse, ExperimentTemplateUpdate,
-                        PdfTemplateBody, PdfTemplateResponse, SampleCreate,
-                        SamplesListResponse, SampleSummary, SampleUpdate)
+from app.models import (
+    ExperimentTemplateCreate,
+    ExperimentTemplateDetail,
+    ExperimentTemplateHistoryResponse,
+    ExperimentTemplatesResponse,
+    ExperimentTemplateSummary,
+    ExperimentTemplateUpdate,
+    PdfTemplateBody,
+    PdfTemplateResponse,
+    SampleCreate,
+    SamplesListResponse,
+    SampleSummary,
+    SampleUpdate,
+    SampleWebOrder,
+    TemplateWebOrder,
+    WebVisibilityUpdate,
+)
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
@@ -27,6 +39,13 @@ async def create_sample(body: SampleCreate, db: DbDep) -> SampleSummary:
 @router.get("")
 async def list_samples(db: DbDep) -> SamplesListResponse:
     return await service.get_samples(db)
+
+
+@router.put("/web-order")
+async def update_samples_web_order(
+    body: SampleWebOrder, db: DbDep
+) -> SamplesListResponse:
+    return await service.update_samples_web_order(db, body)
 
 
 @router.get("/{sample_id}")
@@ -63,6 +82,27 @@ async def list_experiment_templates(
     sample_id: uuid.UUID, db: DbDep
 ) -> ExperimentTemplatesResponse:
     return await service.get_experiment_templates(db, sample_id)
+
+
+@router.put("/{sample_id}/experiments/web-order")
+async def update_templates_web_order(
+    sample_id: uuid.UUID, body: TemplateWebOrder, db: DbDep
+) -> ExperimentTemplatesResponse:
+    return await service.update_templates_web_order(db, sample_id, body)
+
+
+@router.patch("/{sample_id}/web-visibility")
+async def update_sample_web_visibility(
+    sample_id: uuid.UUID, body: WebVisibilityUpdate, db: DbDep
+) -> SampleSummary:
+    return await service.update_sample_web_visibility(db, sample_id, body)
+
+
+@router.patch("/{sample_id}/experiments/{lineage_id}/web-visibility")
+async def update_template_web_visibility(
+    sample_id: uuid.UUID, lineage_id: uuid.UUID, body: WebVisibilityUpdate, db: DbDep
+) -> ExperimentTemplateSummary:
+    return await service.update_template_web_visibility(db, sample_id, lineage_id, body)
 
 
 @router.get("/{sample_id}/experiments/{template_id}")
