@@ -10,7 +10,15 @@ which is the SQLAlchemy equivalent of GORM's BeforeUpdate hook.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -49,16 +57,40 @@ class TimestampMixin:
 
 class SampleType(TimestampMixin, Base):
     __tablename__ = "sample_types"
+    __table_args__ = (CheckConstraint("display_order >= 1"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_visible_on_web: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     templates: Mapped[list["ExperimentTemplate"]] = relationship(
         back_populates="sample_type"
     )
+
+
+class ExperimentTemplateWebSettings(TimestampMixin, Base):
+    __tablename__ = "experiment_template_web_settings"
+    __table_args__ = (CheckConstraint("display_order >= 1"),)
+
+    lineage_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True
+    )
+    sample_type_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("sample_types.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    is_visible_on_web: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 
 class ExperimentTemplate(TimestampMixin, Base):
@@ -84,6 +116,11 @@ class ExperimentTemplate(TimestampMixin, Base):
     sample_type: Mapped["SampleType"] = relationship(back_populates="templates")
     pdf_template: Mapped["PdfTemplate | None"] = relationship(
         back_populates="experiment_template", uselist=False
+    )
+    web_settings: Mapped["ExperimentTemplateWebSettings | None"] = relationship(
+        primaryjoin="foreign(ExperimentTemplate.lineage_id) == ExperimentTemplateWebSettings.lineage_id",
+        viewonly=True,
+        lazy="selectin",
     )
 
 

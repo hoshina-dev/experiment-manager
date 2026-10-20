@@ -6,12 +6,17 @@ os.environ["OTEL_ENDPOINT"] = ""
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
-                                    create_async_engine)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import settings
 from app.database import get_db
-from app.db_models import Base, ExperimentTemplate, PdfTemplate, SampleType
+from app.db_models import (
+    Base,
+    ExperimentTemplate,
+    ExperimentTemplateWebSettings,
+    PdfTemplate,
+    SampleType,
+)
 from main import app
 
 # Fixed IDs shared across all tests — must match seed_catalogue fixture below
@@ -49,8 +54,20 @@ async def seed_catalogue(test_engine):
     async with factory() as session:
         session.add_all(
             [
-                SampleType(id=COAL_ID, name="Coal", description="Coal samples"),
-                SampleType(id=TOMATO_ID, name="Tomato", description="Tomato samples"),
+                SampleType(
+                    id=COAL_ID,
+                    name="Coal",
+                    description="Coal samples",
+                    display_order=1,
+                    is_visible_on_web=True,
+                ),
+                SampleType(
+                    id=TOMATO_ID,
+                    name="Tomato",
+                    description="Tomato samples",
+                    display_order=2,
+                    is_visible_on_web=True,
+                ),
             ]
         )
         await session.flush()
@@ -134,19 +151,45 @@ async def seed_catalogue(test_engine):
         await session.flush()
         session.add_all(
             [
+                ExperimentTemplateWebSettings(
+                    lineage_id=tid,
+                    sample_type_id=COAL_ID,
+                    display_order=position,
+                    is_visible_on_web=True,
+                )
+                for position, tid in enumerate(
+                    [
+                        CALORIFIC_TEMPLATE_ID,
+                        DIVISOR_TEMPLATE_ID,
+                        NO_PDF_TEMPLATE_ID,
+                        PROXIMATE_TEMPLATE_ID,
+                    ],
+                    1,
+                )
+            ]
+        )
+        await session.flush()
+        session.add_all(
+            [
                 PdfTemplate(
                     template_id=PROXIMATE_TEMPLATE_ID,
-                    components=[{"type": "text", "x": 10, "y": 20, "content": "Report"}],
+                    components=[
+                        {"type": "text", "x": 10, "y": 20, "content": "Report"}
+                    ],
                     is_current=True,
                 ),
                 PdfTemplate(
                     template_id=CALORIFIC_TEMPLATE_ID,
-                    components=[{"type": "text", "x": 10, "y": 20, "content": "Report"}],
+                    components=[
+                        {"type": "text", "x": 10, "y": 20, "content": "Report"}
+                    ],
                     is_current=True,
                 ),
                 PdfTemplate(
                     template_id=DIVISOR_TEMPLATE_ID,
-                    components=[{"type": "text", "x": 10, "y": 20, "content": "Report"}],
+                    components=[
+                        {"type": "text", "x": 10, "y": 20, "content": "Report"}
+                    ],
                     is_current=True,
                 ),
                 # NO_PDF_TEMPLATE_ID intentionally has no PdfTemplate row.

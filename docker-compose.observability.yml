@@ -25,6 +25,7 @@ services:
       - ./sql_mock/908_seed_tomato_analysis_experiment_template.up.sql:/docker-entrypoint-initdb.d/908_seed_tomato_analysis_experiment_template.sql:ro
       - ./sql_mock/909_seed_tomato_analysis_pdf_template.up.sql:/docker-entrypoint-initdb.d/909_seed_tomato_analysis_pdf_template.sql:ro
       - ./sql_mock/910_seed_repeatable_measurements.up.sql:/docker-entrypoint-initdb.d/910_seed_repeatable_measurements.sql:ro
+      - ./migrations/008_catalogue_web_settings.up.sql:/docker-entrypoint-initdb.d/999_catalogue_web_settings.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d expman"]
       interval: 2s

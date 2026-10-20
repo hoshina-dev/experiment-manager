@@ -15,10 +15,24 @@ class SampleSummary(BaseModel):
     id: UUID
     name: str
     description: str | None = None
+    is_visible_on_web: bool
+    display_order: int
 
 
 class SamplesListResponse(BaseModel):
     samples: list[SampleSummary]
+
+
+class WebVisibilityUpdate(BaseModel):
+    is_visible_on_web: bool = Field(strict=True)
+
+
+class SampleWebOrder(BaseModel):
+    sample_ids: list[UUID]
+
+
+class TemplateWebOrder(BaseModel):
+    lineage_ids: list[UUID]
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +73,8 @@ class ExperimentTemplateSummary(BaseModel):
     version: int
     is_current: bool
     has_pdf_template: bool
+    is_visible_on_web: bool
+    display_order: int
 
 
 class ExperimentTemplatesResponse(BaseModel):
@@ -81,6 +97,8 @@ class ExperimentTemplateDetail(BaseModel):
     version: int
     is_current: bool
     has_pdf_template: bool
+    is_visible_on_web: bool
+    display_order: int
 
 
 # ---------------------------------------------------------------------------

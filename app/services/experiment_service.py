@@ -11,10 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.repositories.experiment_repository as experiment_repo
 import app.repositories.sample_repository as sample_repo
 from app.db_models import ExperimentTemplate
-from app.models import (Calculation, ExperimentCalculationsUpdate,
-                        ExperimentCreate, ExperimentDetail,
-                        ExperimentsListResponse, ExperimentSummary,
-                        ExperimentUpdate, FormDoc, ReportDownloadResponse)
+from app.models import (
+    Calculation,
+    ExperimentCalculationsUpdate,
+    ExperimentCreate,
+    ExperimentDetail,
+    ExperimentsListResponse,
+    ExperimentSummary,
+    ExperimentUpdate,
+    FormDoc,
+    ReportDownloadResponse,
+)
 from app.pdf.r2_client import presign_download
 from app.report_worker import ReportJob
 from app.validation import FormSchemaError, validate_form
@@ -81,7 +88,10 @@ async def create_experiment(
                 detail=f'Template lineage "{body.lineage_id}" not found for sample "{body.sample_id}"',
             )
 
-        if template_row.pdf_template is None:
+        if (
+            template_row.pdf_template is None
+            or not template_row.pdf_template.components
+        ):
             raise HTTPException(
                 status_code=422,
                 detail="Template has no PDF report layout defined",
@@ -218,9 +228,7 @@ async def update_experiment_calculations(
     does not affect any other experiment on the same lineage. Results are
     reset to "" (unevaluated); call /calculate afterward to recompute them.
     """
-    with tracer.start_as_current_span(
-        "experiment_service.update_calculations"
-    ) as span:
+    with tracer.start_as_current_span("experiment_service.update_calculations") as span:
         span.set_attribute("exp_id", str(exp_id))
         existing = await experiment_repo.get(session, exp_id)
         if existing is None:
