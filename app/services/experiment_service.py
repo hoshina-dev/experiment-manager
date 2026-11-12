@@ -166,8 +166,8 @@ def _assert_no_template_drift(
             {
                 "message": "Submitted clientForm/labForm/calculations no "
                 "longer match this experiment's template. Only 'values' "
-                "can be updated via this endpoint — re-fetch the "
-                "experiment to get the canonical form.",
+                "and calculation results can be updated via this endpoint — "
+                "re-fetch the experiment to get the canonical form.",
                 "drift": drift,
             },
         )
