@@ -11,13 +11,14 @@ POST /api/experiments
   └─ context initialised from experiment template (frozen snapshot)
 
 PUT /api/experiments/{exp_id}
-  └─ worker sends the full slice back, but only `values` is actually
-     applied — clientForm/labForm/calculations must match the experiment's
-     template byte-for-byte (result excluded) or the request is rejected
+  └─ worker sends the full slice back; `values` and each calculation's
+     `result` are applied — clientForm/labForm and the formulas must match
+     the experiment's template byte-for-byte or the request is rejected
      with 422. See "PUT body" below.
 
 POST /api/experiments/{exp_id}/calculate
   └─ server evaluates calculations → writes result on each calculation object
+     (the web app instead evaluates in the browser and saves via PUT)
 
 POST /api/experiments/{exp_id}/report/generate
   └─ PDF engine reads the experiment context to render the report
@@ -55,7 +56,7 @@ POST /api/experiments/{exp_id}/report/generate
 | `clientForm` | object | Experiment template only | Pre-analysis form (client intake). PUT must echo this unchanged; the server re-derives it from the template either way. |
 | `labForm` | object | Experiment template only | Lab measurement form. Required. PUT must echo this unchanged; the server re-derives it from the template either way. |
 | `calculations` | object | Experiment template (`formula`) + `/calculate` or PUT (`result`) | Map of `{ formula, result? }`. Formulas are Python expressions. `result` is written by `/calculate` or sent with a PUT; a PUT without it clears it. |
-| `values` | object | Worker via PUT | Collected answers keyed by question id. Repeatable-group children use columnar arrays. The only field PUT actually changes. |
+| `values` | object | Worker via PUT | Collected answers keyed by question id. Repeatable-group children use columnar arrays. Set by PUT, along with each `result`. |
 
 Template JSONB (`experiment_templates.template`) stores only `clientForm`, `labForm`, and `calculations` — no duplicate `name`/`description`.
 
@@ -128,7 +129,8 @@ When the PDF engine builds its render context, `calculations[name].result` is us
 ## PUT body
 
 The request body still requires the full slice (no API contract break for
-existing clients), but only `values` is ever persisted:
+existing clients), but only `values` and each calculation's `result` are
+persisted:
 
 ```json
 {
