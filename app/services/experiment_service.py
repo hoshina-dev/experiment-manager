@@ -135,7 +135,7 @@ def _assert_no_template_drift(
     against the experiment's own currently-stored formulas instead, since
     `update_experiment_calculations` deliberately lets a single experiment
     override its formulas independent of the template. `result` is excluded
-    from the calculations comparison since only `/calculate` may write it.
+    from the comparison: it is the one part of `calculations` a PUT may set.
     """
     canonical_client = FormDoc(**template["clientForm"]).model_dump(exclude_none=True)
     canonical_lab = FormDoc(**template["labForm"]).model_dump(exclude_none=True)
@@ -197,11 +197,25 @@ async def update_experiment(
             body, template_row.template, existing.state["calculations"]
         )
 
+        # The web app evaluates formulas in the browser and saves the results
+        # together with the values they came from. A body without a result
+        # clears it, so saving new values never leaves stale results behind.
+        calculations = {
+            name: {
+                **calc,
+                "result": (
+                    body.calculations[name].result
+                    if "result" in body.calculations[name].model_fields_set
+                    else ""
+                ),
+            }
+            for name, calc in existing.state["calculations"].items()
+        }
         context = {
             **existing.state,
             "clientForm": template_row.template["clientForm"],
             "labForm": template_row.template["labForm"],
-            "calculations": existing.state["calculations"],
+            "calculations": calculations,
             "values": body.values,
         }
         try:
