@@ -188,19 +188,51 @@ async def test_update_experiment_drift_report_names_every_drifted_part(
     ]
 
 
-async def test_update_experiment_ignores_client_supplied_result(client: AsyncClient):
+async def test_update_experiment_stores_client_supplied_result(client: AsyncClient):
     await client.post("/api/experiments", json=_VALID_BODY)
-    body_with_fabricated_result = {
+    body_with_result = {
         **_STATE_WITH_VALUES,
         "calculations": {
-            "result": {"formula": "values['value'] * 100", "result": 999999},
+            "result": {"formula": "values['value'] * 100", "result": 500.0},
         },
     }
+    response = await client.put(f"/api/experiments/{_EXP_ID}", json=body_with_result)
+    assert response.status_code == 200
+    assert response.json()["calculations"]["result"]["result"] == 500.0
+    stored = (await client.get(f"/api/experiments/{_EXP_ID}")).json()
+    assert stored["calculations"]["result"]["result"] == 500.0
+
+
+async def test_update_experiment_without_result_clears_stale_result(
+    client: AsyncClient,
+):
+    await client.post("/api/experiments", json=_VALID_BODY)
+    await client.put(f"/api/experiments/{_EXP_ID}", json=_STATE_WITH_VALUES)
+    await client.post(f"/api/experiments/{_EXP_ID}/calculate")
+
     response = await client.put(
-        f"/api/experiments/{_EXP_ID}", json=body_with_fabricated_result
+        f"/api/experiments/{_EXP_ID}",
+        json={
+            **_STATE_WITH_VALUES,
+            "calculations": {"result": {"formula": "values['value'] * 100"}},
+            "values": {"value": 7},
+        },
     )
     assert response.status_code == 200
     assert response.json()["calculations"]["result"]["result"] == ""
+
+
+async def test_update_experiment_keeps_explicit_null_result(client: AsyncClient):
+    """A formula that evaluates to None is stored as None, as /calculate does."""
+    await client.post("/api/experiments", json=_VALID_BODY)
+    body = {
+        **_STATE_WITH_VALUES,
+        "calculations": {
+            "result": {"formula": "values['value'] * 100", "result": None},
+        },
+    }
+    response = await client.put(f"/api/experiments/{_EXP_ID}", json=body)
+    assert response.json()["calculations"]["result"]["result"] is None
 
 
 async def test_update_experiment_calculations_replaces_formula(client: AsyncClient):

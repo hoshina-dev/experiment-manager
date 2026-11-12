@@ -11,13 +11,14 @@ POST /api/experiments
   └─ context initialised from experiment template (frozen snapshot)
 
 PUT /api/experiments/{exp_id}
-  └─ worker sends the full slice back, but only `values` is actually
-     applied — clientForm/labForm/calculations must match the experiment's
-     template byte-for-byte (result excluded) or the request is rejected
+  └─ worker sends the full slice back; `values` and each calculation's
+     `result` are applied — clientForm/labForm and the formulas must match
+     the experiment's template byte-for-byte or the request is rejected
      with 422. See "PUT body" below.
 
 POST /api/experiments/{exp_id}/calculate
   └─ server evaluates calculations → writes result on each calculation object
+     (the web app instead evaluates in the browser and saves via PUT)
 
 POST /api/experiments/{exp_id}/report/generate
   └─ PDF engine reads the experiment context to render the report
@@ -54,8 +55,8 @@ POST /api/experiments/{exp_id}/report/generate
 | `description` | string | DB column at creation | Description from `experiment_templates.description`. Frozen at creation. |
 | `clientForm` | object | Experiment template only | Pre-analysis form (client intake). PUT must echo this unchanged; the server re-derives it from the template either way. |
 | `labForm` | object | Experiment template only | Lab measurement form. Required. PUT must echo this unchanged; the server re-derives it from the template either way. |
-| `calculations` | object | Experiment template (`formula`) + `/calculate` (`result`) | Map of `{ formula, result? }`. Formulas are Python expressions. PUT cannot set `result` — only `/calculate` writes it. |
-| `values` | object | Worker via PUT | Collected answers keyed by question id. Repeatable-group children use columnar arrays. The only field PUT actually changes. |
+| `calculations` | object | Experiment template (`formula`) + `/calculate` or PUT (`result`) | Map of `{ formula, result? }`. Formulas are Python expressions. `result` is written by `/calculate` or sent with a PUT; a PUT without it clears it. |
+| `values` | object | Worker via PUT | Collected answers keyed by question id. Repeatable-group children use columnar arrays. Set by PUT, along with each `result`. |
 
 Template JSONB (`experiment_templates.template`) stores only `clientForm`, `labForm`, and `calculations` — no duplicate `name`/`description`.
 
@@ -128,7 +129,8 @@ When the PDF engine builds its render context, `calculations[name].result` is us
 ## PUT body
 
 The request body still requires the full slice (no API contract break for
-existing clients), but only `values` is ever persisted:
+existing clients), but only `values` and each calculation's `result` are
+persisted:
 
 ```json
 {
@@ -143,8 +145,10 @@ existing clients), but only `values` is ever persisted:
 against the experiment's own template (looked up by the frozen
 `template_id`, not the lineage's current version — an older experiment
 keeps using the template version it was created against, even if the
-lineage has since been edited). Any `result` value in `calculations` is
-ignored — only `POST /calculate` may set it. If the submitted
+lineage has since been edited). Each calculation's `result` is stored as
+sent, and a calculation sent without one is cleared: the web app evaluates
+formulas in the browser and saves the results with the values they came
+from, and saving new values without results drops stale ones. If the submitted
 clientForm/labForm/calculations don't match the template, the request
 fails with **422** rather than silently persisting whatever was sent; the
 correct recovery is to `GET` the experiment again and resend its current
@@ -152,8 +156,8 @@ shape with just `values` changed.
 
 This exists because the server previously trusted these fields verbatim:
 a buggy frontend (or a malicious client) could silently rewrite an
-experiment's question/formula definitions, or fabricate a `calculations.result`
-that was never actually computed by `/calculate` — and that fabricated value
-would render into the generated PDF report as if it were real.
+experiment's question/formula definitions. Results are different: since
+formulas run in the browser, a `result` is whatever the (staff-only) caller
+computed, and it renders into the PDF report as sent.
 
 Frozen fields (`id`, `sample_id`, `template_id`, `lineage_id`, `name`, `description`) are preserved from the existing context.
